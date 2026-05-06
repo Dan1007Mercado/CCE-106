@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "522694987648",
+    "project_id": "handymar-31b60",
+    "storage_bucket": "handymar-31b60.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:522694987648:android:d93d8a746d70d02a92fb65",
+        "android_client_info": {
+          "package_name": "com.example.handymarket"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyABJwwYl7YWJfYkAuu__4xIln863cgysnc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
