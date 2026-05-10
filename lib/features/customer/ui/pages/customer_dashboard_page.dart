@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_sizes.dart';
+import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/helpers.dart';
 import '../../../../core/widgets/loading_indicator.dart';
+import '../../../../core/widgets/profile_avatar.dart';
 import '../../../../routes/app_router.dart';
 import '../../../auth/bloc/auth_bloc.dart';
 import '../../../auth/data/models/user_model.dart';
@@ -53,6 +54,8 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
   @override
   Widget build(BuildContext context) {
     final user = context.select((AuthBloc bloc) => bloc.state.user);
+    final theme = Theme.of(context);
+    final tokens = theme.tokens;
 
     if (user == null) {
       return const Scaffold(
@@ -68,8 +71,6 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
         onPressed: () {
           Navigator.of(context).pushNamed(AppRouter.postJobRoute);
         },
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
         icon: const Icon(Icons.add_task_rounded),
         label: const Text('Post a Job'),
       ),
@@ -78,23 +79,27 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
         title: Row(
           children: [
             Container(
-              width: 36,
+              width: 30,
               height: 36,
               decoration: BoxDecoration(
-                color: AppColors.primary,
-                borderRadius: BorderRadius.circular(15),
+                color: theme.colorScheme.primary,
+                borderRadius: BorderRadius.circular(10),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.handyman_rounded,
-                color: Colors.white,
+                color: theme.colorScheme.onPrimary,
                 size: 20,
               ),
             ),
-            const SizedBox(width: 12),
-            const Text(
-              'HandyMarket',
-              style: TextStyle(fontWeight: FontWeight.w700),
-            ),
+
+            const SizedBox(width: 12), // reduce slightly
+            const Flexible(
+              child: Text(
+                'HandyMarket',
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),      
           ],
         ),
         actions: [
@@ -115,18 +120,12 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
                 Navigator.of(context).pushNamed(AppRouter.customerProfileRoute);
               },
               borderRadius: BorderRadius.circular(24),
-              child: CircleAvatar(
+              child: ProfileAvatar(
                 radius: 18,
-                backgroundColor: AppColors.primary.withValues(alpha: 0.14),
-                backgroundImage: user.profilePic.trim().isEmpty
+                name: user.displayName,
+                imageProvider: user.profilePic.trim().isEmpty
                     ? null
                     : NetworkImage(user.profilePic),
-                child: user.profilePic.trim().isEmpty
-                    ? const Icon(
-                        Icons.person_outline_rounded,
-                        color: AppColors.primary,
-                      )
-                    : null,
               ),
             ),
           ),
@@ -142,19 +141,15 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
             ),
             child: Container(
               decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.08),
+                color: tokens.primarySoft,
                 borderRadius: BorderRadius.circular(999),
               ),
               child: TabBar(
                 controller: _tabController,
-                dividerColor: Colors.transparent,
-                indicatorSize: TabBarIndicatorSize.tab,
                 indicator: BoxDecoration(
-                  color: AppColors.primary,
+                  color: theme.colorScheme.primary,
                   borderRadius: BorderRadius.circular(999),
                 ),
-                labelColor: Colors.white,
-                unselectedLabelColor: AppColors.textSecondary,
                 tabs: const [
                   Tab(text: 'Services'),
                   Tab(text: 'Jobs'),
@@ -375,17 +370,18 @@ class _WelcomePanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tokens = theme.tokens;
 
     return Container(
       padding: const EdgeInsets.all(AppSizes.cardPadding),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFFDBF2ED), Colors.white],
+        gradient: LinearGradient(
+          colors: [tokens.pageGradientStart, theme.colorScheme.surface],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(AppSizes.radiusLg),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -394,14 +390,6 @@ class _WelcomePanel extends StatelessWidget {
             'Welcome back, ${user.firstName}',
             style: theme.textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            'Browse provider listings in Services, then switch to Jobs for customer request posts only.',
-            style: theme.textTheme.bodyLarge?.copyWith(
-              color: AppColors.textSecondary,
-              height: 1.45,
             ),
           ),
           const SizedBox(height: 18),
@@ -447,14 +435,18 @@ class _StatusBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: isActive
-            ? AppColors.success.withValues(alpha: 0.12)
-            : AppColors.accent.withValues(alpha: 0.16),
+            ? Theme.of(context).tokens.successSoft
+            : Theme.of(context).tokens.warningSoft,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         label,
         style: TextStyle(
-          color: isActive ? AppColors.success : AppColors.textPrimary,
+          color: AppTheme.resolveOnColor(
+            isActive
+                ? Theme.of(context).tokens.successSoft
+                : Theme.of(context).tokens.warningSoft,
+          ),
           fontWeight: FontWeight.w600,
         ),
       ),
@@ -499,7 +491,7 @@ class _ServicesFeedSection extends StatelessWidget {
             _SectionHeader(
               title: 'Service feed',
               description:
-                  'Provider listings only. Filters live behind the icon here and do not affect Jobs.',
+                  'Provider listings only. Filters live behind the icon here.',
               action: IconButton(
                 onPressed: onOpenFilters,
                 icon: const Icon(Icons.filter_list_rounded),
@@ -611,7 +603,9 @@ class _SectionHeader extends StatelessWidget {
               Text(
                 description,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.textSecondary,
+                  color: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.color?.withValues(alpha: 0.74),
                   height: 1.45,
                 ),
               ),
@@ -647,15 +641,15 @@ class _ActiveFiltersSummary extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFFEAF2F1),
+        color: Theme.of(context).tokens.subtleSurface,
         borderRadius: BorderRadius.circular(AppSizes.radiusMd),
       ),
       child: Text(
         filters.isEmpty
             ? 'Showing all service listings.'
             : 'Active filters: ${filters.join(' | ')}',
-        style: const TextStyle(
-          color: AppColors.textSecondary,
+        style: TextStyle(
+          color: AppTheme.resolveOnColor(Theme.of(context).tokens.subtleSurface),
           fontWeight: FontWeight.w600,
         ),
       ),
@@ -679,10 +673,12 @@ class _EmptyFeedCard extends StatelessWidget {
         padding: const EdgeInsets.all(AppSizes.cardPadding),
         child: Column(
           children: [
-            const Icon(
+            Icon(
               Icons.inbox_outlined,
               size: 40,
-              color: AppColors.textSecondary,
+              color: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.color?.withValues(alpha: 0.74),
             ),
             const SizedBox(height: 12),
             Text(
@@ -697,7 +693,9 @@ class _EmptyFeedCard extends StatelessWidget {
               description,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: AppColors.textSecondary,
+                color: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.color?.withValues(alpha: 0.74),
                 height: 1.45,
               ),
             ),
@@ -717,6 +715,7 @@ class _ServiceFeedCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tokens = theme.tokens;
 
     return Card(
       child: Padding(
@@ -727,10 +726,10 @@ class _ServiceFeedCard extends StatelessWidget {
             Row(
               children: [
                 CircleAvatar(
-                  backgroundColor: AppColors.primary.withValues(alpha: 0.12),
-                  child: const Icon(
+                  backgroundColor: tokens.primarySoft,
+                  child: Icon(
                     Icons.home_repair_service_rounded,
-                    color: AppColors.primary,
+                    color: AppTheme.resolveOnColor(tokens.primarySoft),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -748,7 +747,9 @@ class _ServiceFeedCard extends StatelessWidget {
                       Text(
                         service.category,
                         style: theme.textTheme.bodyMedium?.copyWith(
-                          color: AppColors.textSecondary,
+                          color: theme.textTheme.bodyMedium?.color?.withValues(
+                            alpha: 0.74,
+                          ),
                         ),
                       ),
                     ],
@@ -768,7 +769,7 @@ class _ServiceFeedCard extends StatelessWidget {
             Text(
               service.description,
               style: theme.textTheme.bodyLarge?.copyWith(
-                color: AppColors.textSecondary,
+                color: theme.textTheme.bodyLarge?.color?.withValues(alpha: 0.74),
                 height: 1.5,
               ),
             ),
@@ -806,6 +807,7 @@ class _JobFeedCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tokens = theme.tokens;
 
     return Card(
       child: Padding(
@@ -816,10 +818,10 @@ class _JobFeedCard extends StatelessWidget {
             Row(
               children: [
                 CircleAvatar(
-                  backgroundColor: AppColors.accent.withValues(alpha: 0.18),
-                  child: const Icon(
+                  backgroundColor: tokens.accentSoft,
+                  child: Icon(
                     Icons.campaign_outlined,
-                    color: AppColors.textPrimary,
+                    color: AppTheme.resolveOnColor(tokens.accentSoft),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -837,7 +839,9 @@ class _JobFeedCard extends StatelessWidget {
                       Text(
                         'Customer job post',
                         style: theme.textTheme.bodyMedium?.copyWith(
-                          color: AppColors.textSecondary,
+                          color: theme.textTheme.bodyMedium?.color?.withValues(
+                            alpha: 0.74,
+                          ),
                         ),
                       ),
                     ],
@@ -857,7 +861,7 @@ class _JobFeedCard extends StatelessWidget {
             Text(
               job.description,
               style: theme.textTheme.bodyLarge?.copyWith(
-                color: AppColors.textSecondary,
+                color: theme.textTheme.bodyLarge?.color?.withValues(alpha: 0.74),
                 height: 1.5,
               ),
             ),
@@ -888,16 +892,18 @@ class _InfoPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final background = Theme.of(context).tokens.subtleSurface;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFFEAF2F1),
+        color: background,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         label,
-        style: const TextStyle(
-          color: AppColors.textPrimary,
+        style: TextStyle(
+          color: AppTheme.resolveOnColor(background),
           fontWeight: FontWeight.w600,
         ),
       ),

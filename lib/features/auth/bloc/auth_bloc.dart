@@ -22,6 +22,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
 
   final AuthRepository _authRepository;
   StreamSubscription<User?>? _authSubscription;
+  String? _pendingUnauthenticatedMessage;
+  AuthFeedbackType? _pendingUnauthenticatedFeedbackType;
 
   Future<void> _onStarted(AuthStarted event, Emitter<AuthState> emit) async {
     await _authSubscription?.cancel();
@@ -35,17 +37,25 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     Emitter<AuthState> emit,
   ) async {
     if (event.user == null) {
+      final message = _pendingUnauthenticatedMessage;
+      final feedbackType = _pendingUnauthenticatedFeedbackType;
+      _clearPendingUnauthenticatedFeedback();
+
       emit(
         state.copyWith(
           status: AuthStatus.unauthenticated,
           clearUser: true,
           isSubmitting: false,
-          clearMessage: true,
-          clearFeedbackType: true,
+          message: message,
+          clearMessage: message == null,
+          feedbackType: feedbackType,
+          clearFeedbackType: feedbackType == null,
         ),
       );
       return;
     }
+
+    _clearPendingUnauthenticatedFeedback();
 
     try {
       final user = await _authRepository.loadUserProfile(event.user!);
@@ -89,6 +99,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     AuthLoginRequested event,
     Emitter<AuthState> emit,
   ) async {
+    _clearPendingUnauthenticatedFeedback();
     emit(
       state.copyWith(
         isSubmitting: true,
@@ -126,6 +137,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     AuthRegisterRequested event,
     Emitter<AuthState> emit,
   ) async {
+    _clearPendingUnauthenticatedFeedback();
     emit(
       state.copyWith(
         isSubmitting: true,
@@ -144,10 +156,16 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         password: event.password,
         role: event.role,
       );
+      _setPendingUnauthenticatedFeedback(
+        message: 'Account created successfully',
+        feedbackType: AuthFeedbackType.success,
+      );
       emit(
         state.copyWith(
+          status: AuthStatus.unauthenticated,
+          clearUser: true,
           isSubmitting: false,
-          message: 'Successful',
+          message: 'Account created successfully',
           feedbackType: AuthFeedbackType.success,
         ),
       );
@@ -168,6 +186,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     AuthPasswordResetRequested event,
     Emitter<AuthState> emit,
   ) async {
+    _clearPendingUnauthenticatedFeedback();
     emit(
       state.copyWith(
         isSubmitting: true,
@@ -205,8 +224,17 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     Emitter<AuthState> emit,
   ) async {
     try {
+      if (event.message != null && event.feedbackType != null) {
+        _setPendingUnauthenticatedFeedback(
+          message: event.message!,
+          feedbackType: event.feedbackType!,
+        );
+      } else {
+        _clearPendingUnauthenticatedFeedback();
+      }
       await _authRepository.signOut();
     } catch (error) {
+      _clearPendingUnauthenticatedFeedback();
       emit(
         state.copyWith(
           isSubmitting: false,
@@ -234,6 +262,19 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
 
   String _readableError(Object error) {
     return error.toString().replaceFirst('Exception: ', '');
+  }
+
+  void _setPendingUnauthenticatedFeedback({
+    required String message,
+    required AuthFeedbackType feedbackType,
+  }) {
+    _pendingUnauthenticatedMessage = message;
+    _pendingUnauthenticatedFeedbackType = feedbackType;
+  }
+
+  void _clearPendingUnauthenticatedFeedback() {
+    _pendingUnauthenticatedMessage = null;
+    _pendingUnauthenticatedFeedbackType = null;
   }
 
   @override

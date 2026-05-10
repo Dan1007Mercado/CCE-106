@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_sizes.dart';
+import '../../../../core/theme/app_theme.dart';
 import '../../../../core/widgets/loading_indicator.dart';
 import '../../../auth/bloc/auth_bloc.dart';
 import '../../../auth/bloc/auth_event.dart';
@@ -30,15 +31,21 @@ class HomePage extends StatelessWidget {
     }
 
     final theme = Theme.of(context);
+    final tokens = theme.tokens;
     final highlights = _roleHighlights(user.role);
+    final secondaryText = theme.textTheme.bodyLarge?.color?.withValues(
+      alpha: 0.74,
+    );
 
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
+      body: AnimatedContainer(
+        duration: AppTheme.motionDuration,
+        curve: AppTheme.motionCurve,
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0xFFE8F5F2), AppColors.background],
+            colors: [tokens.pageGradientStart, tokens.pageGradientEnd],
           ),
         ),
         child: SafeArea(
@@ -67,7 +74,7 @@ class HomePage extends StatelessWidget {
                                 Text(
                                   user.email,
                                   style: theme.textTheme.bodyLarge?.copyWith(
-                                    color: AppColors.textSecondary,
+                                    color: secondaryText,
                                   ),
                                 ),
                               ],
@@ -99,7 +106,9 @@ class HomePage extends StatelessWidget {
                         child: Text(
                           '${user.role.label} role',
                           style: theme.textTheme.labelLarge?.copyWith(
-                            color: _roleColor(user.role),
+                            color: AppTheme.resolveOnColor(
+                              _roleColor(user.role).withValues(alpha: 0.12),
+                            ),
                             fontWeight: FontWeight.w700,
                           ),
                         ),
@@ -108,7 +117,7 @@ class HomePage extends StatelessWidget {
                       Text(
                         user.role.description,
                         style: theme.textTheme.bodyLarge?.copyWith(
-                          color: AppColors.textSecondary,
+                          color: secondaryText,
                           height: 1.45,
                         ),
                       ),
@@ -127,7 +136,7 @@ class HomePage extends StatelessWidget {
               Text(
                 _dashboardLead(user.role),
                 style: theme.textTheme.bodyLarge?.copyWith(
-                  color: AppColors.textSecondary,
+                  color: secondaryText,
                 ),
               ),
               const SizedBox(height: 16),

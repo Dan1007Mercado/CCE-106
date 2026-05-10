@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/theme/app_theme.dart';
 import '../features/auth/ui/pages/forgot_password_page.dart';
 import '../features/auth/ui/pages/login_page.dart';
 import '../features/auth/ui/pages/register_page.dart';
@@ -22,48 +23,76 @@ class AppRouter {
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
     switch (settings.name) {
       case registerRoute:
-        return MaterialPageRoute(
+        return _AppPageRoute(
           builder: (_) => const RegisterPage(),
           settings: settings,
         );
       case forgotPasswordRoute:
-        return MaterialPageRoute(
+        return _AppPageRoute(
           builder: (_) => const ForgotPasswordPage(),
           settings: settings,
         );
       case customerProfileRoute:
-        return MaterialPageRoute(
+        return _AppPageRoute(
           builder: (_) => const CustomerProfilePage(),
           settings: settings,
         );
       case editProfileRoute:
-        return MaterialPageRoute(
+        return _AppPageRoute(
           builder: (_) => const EditProfilePage(),
           settings: settings,
         );
       case postJobRoute:
-        return MaterialPageRoute(
+        return _AppPageRoute(
           builder: (_) => const PostJobPage(),
           settings: settings,
         );
       case serviceDetailRoute:
         final service = settings.arguments;
-        return MaterialPageRoute(
+        return _AppPageRoute(
           builder: (_) => ServiceDetailPage(
             service: service is ServiceListingModel ? service : null,
           ),
           settings: settings,
         );
       case settingsRoute:
-        return MaterialPageRoute(
+        return _AppPageRoute(
           builder: (_) => const SettingsPage(),
           settings: settings,
         );
       default:
-        return MaterialPageRoute(
+        return _AppPageRoute(
           builder: (_) => const LoginPage(),
           settings: settings,
         );
     }
   }
+}
+
+class _AppPageRoute<T> extends PageRouteBuilder<T> {
+  _AppPageRoute({
+    required WidgetBuilder builder,
+    required RouteSettings settings,
+  }) : super(
+         settings: settings,
+         pageBuilder: (context, animation, secondaryAnimation) =>
+             builder(context),
+         transitionDuration: AppTheme.motionDuration,
+         reverseTransitionDuration: AppTheme.motionReverseDuration,
+         transitionsBuilder: (context, animation, secondaryAnimation, child) {
+           final fade = CurvedAnimation(
+             parent: animation,
+             curve: AppTheme.motionCurve,
+           );
+           final slide = Tween<Offset>(
+             begin: const Offset(0, 0.035),
+             end: Offset.zero,
+           ).animate(fade);
+
+           return FadeTransition(
+             opacity: fade,
+             child: SlideTransition(position: slide, child: child),
+           );
+         },
+       );
 }

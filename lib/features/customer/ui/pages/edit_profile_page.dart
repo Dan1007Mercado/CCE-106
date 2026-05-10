@@ -4,15 +4,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_sizes.dart';
 import '../../../../core/services/device_permission_service.dart';
 import '../../../../core/services/location_service.dart';
 import '../../../../core/services/profile_image_service.dart';
+import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/helpers.dart';
 import '../../../../core/utils/validators.dart';
 import '../../../../core/widgets/custom_button.dart';
 import '../../../../core/widgets/custom_textfield.dart';
+import '../../../../core/widgets/profile_avatar.dart';
 import '../../../auth/bloc/auth_bloc.dart';
 import '../../../auth/bloc/auth_event.dart';
 import '../../../auth/data/models/user_model.dart';
@@ -87,6 +88,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
   @override
   Widget build(BuildContext context) {
     final user = context.select((AuthBloc bloc) => bloc.state.user);
+    final theme = Theme.of(context);
+    final tokens = theme.tokens;
 
     if (user == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
@@ -116,19 +119,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
                       const SizedBox(height: 16),
                       Row(
                         children: [
-                          CircleAvatar(
+                          ProfileAvatar(
                             radius: 34,
-                            backgroundColor: AppColors.primary.withValues(
-                              alpha: 0.14,
-                            ),
-                            backgroundImage: _buildProfileImage(),
-                            child: _showAvatarPlaceholder
-                                ? const Icon(
-                                    Icons.person_outline_rounded,
-                                    color: AppColors.primary,
-                                    size: 30,
-                                  )
-                                : null,
+                            name: _previewDisplayName(user),
+                            imageProvider: _buildProfileImage(),
                           ),
                           const SizedBox(width: 16),
                           Expanded(
@@ -139,11 +133,11 @@ class _EditProfilePageState extends State<EditProfilePage> {
                                   _photosPermission == UserPermissionStatus.granted
                                       ? 'Gallery access is ready for upload.'
                                       : 'Photo upload is blocked until gallery access is granted.',
-                                  style: Theme.of(context).textTheme.bodyMedium
-                                      ?.copyWith(
-                                        color: AppColors.textSecondary,
-                                        height: 1.4,
-                                      ),
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: theme.textTheme.bodyMedium?.color
+                                        ?.withValues(alpha: 0.74),
+                                    height: 1.4,
+                                  ),
                                 ),
                                 const SizedBox(height: 10),
                                 Wrap(
@@ -153,7 +147,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                                     OutlinedButton.icon(
                                       onPressed: _isPickingPhoto || _isSaving
                                           ? null
-                                          : () => _pickProfilePhoto(user),
+                                          : () => _showPhotoSourceSheet(user),
                                       icon: _isPickingPhoto
                                           ? const SizedBox(
                                               width: 16,
@@ -251,8 +245,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
                       const SizedBox(height: 10),
                       Text(
                         'Bookings require device GPS coordinates. You can still enter a fallback address if location access is denied.',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: AppColors.textSecondary,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.textTheme.bodyMedium?.color?.withValues(
+                            alpha: 0.74,
+                          ),
                           height: 1.45,
                         ),
                       ),
@@ -270,15 +266,15 @@ class _EditProfilePageState extends State<EditProfilePage> {
                           width: double.infinity,
                           padding: const EdgeInsets.all(14),
                           decoration: BoxDecoration(
-                            color: AppColors.primary.withValues(alpha: 0.08),
+                            color: tokens.primarySoft,
                             borderRadius: BorderRadius.circular(
                               AppSizes.radiusMd,
                             ),
                           ),
                           child: Text(
                             'GPS saved: ${_latitude!.toStringAsFixed(5)}, ${_longitude!.toStringAsFixed(5)}',
-                            style: const TextStyle(
-                              color: AppColors.textSecondary,
+                            style: TextStyle(
+                              color: AppTheme.resolveOnColor(tokens.primarySoft),
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -356,36 +352,90 @@ class _EditProfilePageState extends State<EditProfilePage> {
   bool get _showAvatarPlaceholder =>
       _selectedProfileImageBytes == null && _profileImageUrl.trim().isEmpty;
 
-  Future<void> _pickProfilePhoto(UserModel currentUser) async {
+  Future<void> _showPhotoSourceSheet(UserModel currentUser) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.photo_library_outlined),
+                  title: const Text('Choose from gallery'),
+                  subtitle: const Text('Pick an existing photo'),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    _pickProfilePhoto(
+                      currentUser: currentUser,
+                      source: ImageSource.gallery,
+                    );
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.photo_camera_outlined),
+                  title: const Text('Take a photo'),
+                  subtitle: const Text('Use your camera'),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    _pickProfilePhoto(
+                      currentUser: currentUser,
+                      source: ImageSource.camera,
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _pickProfilePhoto({
+    required UserModel currentUser,
+    required ImageSource source,
+  }) async {
     setState(() {
       _isPickingPhoto = true;
     });
 
     try {
-      final permissionStatus = await _permissionService.requestPhotosPermission();
-      await _syncProfilePreferences(
-        currentUser: currentUser,
-        photosPermission: permissionStatus,
-      );
+      final permissionStatus = source == ImageSource.camera
+          ? await _permissionService.requestCameraPermission()
+          : await _permissionService.requestPhotosPermission();
+
+      if (source == ImageSource.gallery) {
+        await _syncProfilePreferences(
+          currentUser: currentUser,
+          photosPermission: permissionStatus,
+        );
+      }
 
       if (!mounted) {
         return;
       }
 
-      setState(() {
-        _photosPermission = permissionStatus;
-      });
+      if (source == ImageSource.gallery) {
+        setState(() {
+          _photosPermission = permissionStatus;
+        });
+      }
 
       if (permissionStatus != UserPermissionStatus.granted) {
         Helpers.showSnackBar(
           context,
-          'Profile photo upload stays unavailable until gallery access is granted.',
+          source == ImageSource.camera
+              ? 'Camera access is required to take a profile photo.'
+              : 'Profile photo upload stays unavailable until gallery access is granted.',
           isError: true,
         );
         return;
       }
 
-      final image = await _profileImageService.pickImage();
+      final image = await _profileImageService.pickImage(source: source);
       if (image == null) {
         return;
       }
@@ -581,5 +631,20 @@ class _EditProfilePageState extends State<EditProfilePage> {
       context,
       'Device settings opened. Return here after updating permissions.',
     );
+  }
+
+  String _previewDisplayName(UserModel user) {
+    final draftName = [
+      _firstNameController.text,
+      _middleNameController.text,
+      _lastNameController.text,
+      _suffixController.text,
+    ].where((part) => part.trim().isNotEmpty).join(' ').trim();
+
+    if (draftName.isNotEmpty) {
+      return draftName;
+    }
+
+    return user.displayName;
   }
 }

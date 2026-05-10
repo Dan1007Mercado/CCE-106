@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_sizes.dart';
+import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/helpers.dart';
 import '../../../../core/widgets/custom_button.dart';
 import '../../../../routes/app_router.dart';
@@ -28,6 +28,8 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
   Widget build(BuildContext context) {
     final service = widget.service;
     final user = context.select((AuthBloc bloc) => bloc.state.user);
+    final theme = Theme.of(context);
+    final tokens = theme.tokens;
 
     if (service == null) {
       return const Scaffold(
@@ -50,12 +52,10 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
                     children: [
                       CircleAvatar(
                         radius: 28,
-                        backgroundColor: AppColors.primary.withValues(
-                          alpha: 0.14,
-                        ),
-                        child: const Icon(
+                        backgroundColor: tokens.primarySoft,
+                        child: Icon(
                           Icons.engineering_rounded,
-                          color: AppColors.primary,
+                          color: AppTheme.resolveOnColor(tokens.primarySoft),
                         ),
                       ),
                       const SizedBox(width: 14),
@@ -71,8 +71,10 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
                             const SizedBox(height: 4),
                             Text(
                               service.category,
-                              style: Theme.of(context).textTheme.bodyLarge
-                                  ?.copyWith(color: AppColors.textSecondary),
+                              style: theme.textTheme.bodyLarge?.copyWith(
+                                color: theme.textTheme.bodyLarge?.color
+                                    ?.withValues(alpha: 0.74),
+                              ),
                             ),
                           ],
                         ),
@@ -89,8 +91,10 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
                   const SizedBox(height: 12),
                   Text(
                     service.description,
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: AppColors.textSecondary,
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      color: theme.textTheme.bodyLarge?.color?.withValues(
+                        alpha: 0.74,
+                      ),
                       height: 1.5,
                     ),
                   ),
@@ -135,7 +139,11 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
                     user != null && user.isReadyForBooking
                         ? 'Your customer profile is ready for booking.'
                         : 'Add your 09XXXXXXXXX mobile number and capture your GPS location in Profile before booking.',
-                    style: const TextStyle(color: AppColors.textSecondary),
+                    style: TextStyle(
+                      color: theme.textTheme.bodyMedium?.color?.withValues(
+                        alpha: 0.74,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -222,9 +230,11 @@ class _DetailRow extends StatelessWidget {
             child: Text(
               value,
               textAlign: TextAlign.right,
-              style: Theme.of(
-                context,
-              ).textTheme.bodyLarge?.copyWith(color: AppColors.textSecondary),
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: Theme.of(
+                  context,
+                ).textTheme.bodyLarge?.color?.withValues(alpha: 0.74),
+              ),
             ),
           ),
         ],

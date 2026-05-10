@@ -20,6 +20,14 @@ class DevicePermissionService {
     return _requestCombinedPermissions(const [Permission.notification]);
   }
 
+  Future<UserPermissionStatus> getCameraPermissionStatus() {
+    return _readCombinedStatus(const [Permission.camera]);
+  }
+
+  Future<UserPermissionStatus> requestCameraPermission() {
+    return _requestCombinedPermissions(const [Permission.camera]);
+  }
+
   Future<bool> openSettings() => openAppSettings();
 
   List<Permission> get _photoPermissions {

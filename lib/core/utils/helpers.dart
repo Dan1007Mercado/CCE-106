@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../constants/app_colors.dart';
+import '../theme/app_theme.dart';
 
 class Helpers {
   static void showSnackBar(
@@ -9,13 +9,19 @@ class Helpers {
     bool isError = false,
   }) {
     final messenger = ScaffoldMessenger.of(context);
+    final backgroundColor = isError
+        ? Theme.of(context).colorScheme.error
+        : const Color(0xFF15803D);
 
     messenger
       ..hideCurrentSnackBar()
       ..showSnackBar(
         SnackBar(
-          backgroundColor: isError ? AppColors.error : AppColors.success,
-          content: Text(message),
+          backgroundColor: backgroundColor,
+          content: Text(
+            message,
+            style: TextStyle(color: AppTheme.resolveOnColor(backgroundColor)),
+          ),
         ),
       );
   }

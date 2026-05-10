@@ -37,6 +37,7 @@ class AuthService {
     String suffix = '',
   }) async {
     User? createdUser;
+    var profileSaved = false;
 
     try {
       final credential = await _firebaseAuth.createUserWithEmailAndPassword(
@@ -68,15 +69,18 @@ class AuthService {
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
+      profileSaved = true;
+
+      await _firebaseAuth.signOut();
     } on FirebaseAuthException catch (error) {
       throw Exception(_messageFromAuthError(error));
     } on FirebaseException catch (error) {
-      if (createdUser != null) {
+      if (createdUser != null && !profileSaved) {
         await _deleteAuthUserSilently(createdUser);
       }
       throw Exception(error.message ?? 'We could not save your profile.');
     } catch (error) {
-      if (createdUser != null) {
+      if (createdUser != null && !profileSaved) {
         await _deleteAuthUserSilently(createdUser);
       }
       rethrow;
@@ -128,7 +132,7 @@ class AuthService {
   String _messageFromAuthError(FirebaseAuthException error) {
     switch (error.code) {
       case 'email-already-in-use':
-        return 'That email is already in use.';
+        return 'Email already in use.';
       case 'invalid-email':
         return 'Please enter a valid email address.';
       case 'invalid-credential':

@@ -57,12 +57,14 @@ class _LoginPageState extends State<LoginPage> {
           return;
         }
 
+        if (state.feedbackType == AuthFeedbackType.success) {
+          return;
+        }
+
         Helpers.showSnackBar(
           context,
-          state.feedbackType == AuthFeedbackType.success
-              ? 'Successful'
-              : 'Failed',
-          isError: state.feedbackType == AuthFeedbackType.error,
+          state.message ?? 'Incorrect email or password.',
+          isError: true,
         );
       },
       builder: (context, state) {

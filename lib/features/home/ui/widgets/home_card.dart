@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_sizes.dart';
+import '../../../../core/theme/app_theme.dart';
 
 class HomeCard extends StatelessWidget {
   const HomeCard({
@@ -18,6 +18,7 @@ class HomeCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tokens = theme.tokens;
 
     return Card(
       child: Padding(
@@ -29,10 +30,10 @@ class HomeCard extends StatelessWidget {
               width: 48,
               height: 48,
               decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.10),
+                color: tokens.primarySoft,
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: Icon(icon, color: AppColors.primary),
+              child: Icon(icon, color: AppTheme.resolveOnColor(tokens.primarySoft)),
             ),
             const SizedBox(height: 16),
             Text(
@@ -45,7 +46,7 @@ class HomeCard extends StatelessWidget {
             Text(
               description,
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: AppColors.textSecondary,
+                color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.74),
                 height: 1.45,
               ),
             ),

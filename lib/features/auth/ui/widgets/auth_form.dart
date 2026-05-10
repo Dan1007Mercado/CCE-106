@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_sizes.dart';
+import '../../../../core/theme/app_theme.dart';
 
 class AuthForm extends StatelessWidget {
   const AuthForm({
@@ -20,14 +20,18 @@ class AuthForm extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tokens = theme.tokens;
+    final mutedText = theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.74);
 
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
+      body: AnimatedContainer(
+        duration: AppTheme.motionDuration,
+        curve: AppTheme.motionCurve,
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [AppColors.background, Color(0xFFE6F4F1)],
+            colors: [tokens.pageGradientStart, tokens.pageGradientEnd],
           ),
         ),
         child: SafeArea(
@@ -46,13 +50,13 @@ class AuthForm extends StatelessWidget {
                           width: 64,
                           height: 64,
                           decoration: BoxDecoration(
-                            color: AppColors.primary.withValues(alpha: 0.12),
+                            color: tokens.primarySoft,
                             borderRadius: BorderRadius.circular(20),
                           ),
-                          child: const Icon(
+                          child: Icon(
                             Icons.handyman_rounded,
                             size: 32,
-                            color: AppColors.primary,
+                            color: AppTheme.resolveOnColor(tokens.primarySoft),
                           ),
                         ),
                         const SizedBox(height: 20),
@@ -66,7 +70,7 @@ class AuthForm extends StatelessWidget {
                         Text(
                           subtitle,
                           style: theme.textTheme.bodyMedium?.copyWith(
-                            color: AppColors.textSecondary,
+                            color: mutedText,
                             height: 1.45,
                           ),
                         ),

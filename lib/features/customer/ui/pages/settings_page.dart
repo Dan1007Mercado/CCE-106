@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_sizes.dart';
 import '../../../../core/services/device_permission_service.dart';
 import '../../../../core/services/location_service.dart';
+import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/helpers.dart';
 import '../../../../core/widgets/custom_button.dart';
-import '../../../../routes/app_router.dart';
 import '../../../auth/bloc/auth_bloc.dart';
 import '../../../auth/bloc/auth_event.dart';
 import '../../../auth/data/models/user_model.dart';
@@ -53,6 +52,10 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     final user = context.select((AuthBloc bloc) => bloc.state.user);
+    final theme = Theme.of(context);
+    final secondaryText = theme.textTheme.bodyMedium?.color?.withValues(
+      alpha: 0.74,
+    );
     if (user == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
@@ -77,8 +80,8 @@ class _SettingsPageState extends State<SettingsPage> {
                   const SizedBox(height: 10),
                   Text(
                     'Your theme mode is stored on your account and applied across the app.',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.textSecondary,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: secondaryText,
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -88,9 +91,9 @@ class _SettingsPageState extends State<SettingsPage> {
                       title: Text(option.label),
                       subtitle: Text(_themeDescription(option)),
                       trailing: user.themeMode == option
-                          ? const Icon(
+                          ? Icon(
                               Icons.check_circle_rounded,
-                              color: AppColors.success,
+                              color: theme.colorScheme.primary,
                             )
                           : null,
                       onTap: _isUpdatingTheme || user.themeMode == option
@@ -129,8 +132,8 @@ class _SettingsPageState extends State<SettingsPage> {
                   const SizedBox(height: 10),
                   Text(
                     'These permissions control real app behavior for photo upload, push alerts, and GPS-based booking.',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.textSecondary,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: secondaryText,
                     ),
                   ),
                   const SizedBox(height: 18),
@@ -191,17 +194,9 @@ class _SettingsPageState extends State<SettingsPage> {
                   const SizedBox(height: 4),
                   Text(
                     user.email,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.textSecondary,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: secondaryText,
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      Navigator.of(context).pushNamed(AppRouter.editProfileRoute);
-                    },
-                    icon: const Icon(Icons.manage_accounts_outlined),
-                    label: const Text('Manage profile'),
                   ),
                   const SizedBox(height: 12),
                   CustomButton(
@@ -460,7 +455,6 @@ class _SettingsPageState extends State<SettingsPage> {
 
   void _logout() {
     context.read<AuthBloc>().add(const AuthSignOutRequested());
-    Navigator.of(context).popUntil((route) => route.isFirst);
   }
 }
 
@@ -483,12 +477,14 @@ class _PermissionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final statusColor = switch (status) {
-      UserPermissionStatus.granted => AppColors.success,
-      UserPermissionStatus.permanentlyDenied => AppColors.error,
-      UserPermissionStatus.denied => AppColors.accent,
-      UserPermissionStatus.unknown => AppColors.textSecondary,
+    final theme = Theme.of(context);
+    final statusBackground = switch (status) {
+      UserPermissionStatus.granted => theme.tokens.successSoft,
+      UserPermissionStatus.permanentlyDenied => theme.colorScheme.errorContainer,
+      UserPermissionStatus.denied => theme.tokens.warningSoft,
+      UserPermissionStatus.unknown => theme.tokens.subtleSurface,
     };
+    final statusForeground = AppTheme.resolveOnColor(statusBackground);
 
     final actionLabel = switch (status) {
       UserPermissionStatus.granted => 'Check again',
@@ -500,7 +496,7 @@ class _PermissionTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
         borderRadius: BorderRadius.circular(AppSizes.radiusMd),
       ),
       child: Column(
@@ -522,13 +518,13 @@ class _PermissionTile extends StatelessWidget {
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.12),
+                  color: statusBackground,
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
                   status.label,
                   style: TextStyle(
-                    color: statusColor,
+                    color: statusForeground,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -538,8 +534,8 @@ class _PermissionTile extends StatelessWidget {
           const SizedBox(height: 10),
           Text(
             subtitle,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: AppColors.textSecondary,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.74),
               height: 1.4,
             ),
           ),

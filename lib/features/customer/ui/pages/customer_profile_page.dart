@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_sizes.dart';
 import '../../../../core/widgets/loading_indicator.dart';
+import '../../../../core/widgets/profile_avatar.dart';
 import '../../../../routes/app_router.dart';
 import '../../../auth/bloc/auth_bloc.dart';
 
@@ -23,6 +23,9 @@ class CustomerProfilePage extends StatelessWidget {
     }
 
     final theme = Theme.of(context);
+    final secondaryText = theme.textTheme.bodyMedium?.color?.withValues(
+      alpha: 0.74,
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -44,19 +47,12 @@ class CustomerProfilePage extends StatelessWidget {
               padding: const EdgeInsets.all(AppSizes.cardPadding),
               child: Column(
                 children: [
-                  CircleAvatar(
+                  ProfileAvatar(
                     radius: 40,
-                    backgroundColor: AppColors.primary.withValues(alpha: 0.14),
-                    backgroundImage: user.profilePic.trim().isEmpty
+                    name: user.displayName,
+                    imageProvider: user.profilePic.trim().isEmpty
                         ? null
                         : NetworkImage(user.profilePic),
-                    child: user.profilePic.trim().isEmpty
-                        ? const Icon(
-                            Icons.person_outline_rounded,
-                            size: 36,
-                            color: AppColors.primary,
-                          )
-                        : null,
                   ),
                   const SizedBox(height: 16),
                   Text(
@@ -70,7 +66,7 @@ class CustomerProfilePage extends StatelessWidget {
                   Text(
                     user.email,
                     style: theme.textTheme.bodyLarge?.copyWith(
-                      color: AppColors.textSecondary,
+                      color: secondaryText,
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -149,7 +145,7 @@ class CustomerProfilePage extends StatelessWidget {
                     ? 'Your profile is ready for fixed-price booking.'
                     : 'Bookings stay disabled until your 09XXXXXXXXX mobile number and device GPS coordinates are saved.',
                 style: theme.textTheme.bodyLarge?.copyWith(
-                  color: AppColors.textSecondary,
+                  color: secondaryText,
                   height: 1.45,
                 ),
               ),
@@ -157,7 +153,7 @@ class CustomerProfilePage extends StatelessWidget {
               Text(
                 'Profile editing lives in Settings > Manage profile.',
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  color: AppColors.textSecondary,
+                  color: secondaryText,
                 ),
               ),
             ],
@@ -211,6 +207,9 @@ class _ProfileRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isEmpty = value.trim().isEmpty;
+    final secondaryText = Theme.of(
+      context,
+    ).textTheme.bodyLarge?.color?.withValues(alpha: 0.74);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
@@ -231,9 +230,7 @@ class _ProfileRow extends StatelessWidget {
               isEmpty ? (emptyLabel ?? 'Not provided yet') : value,
               textAlign: TextAlign.right,
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: isEmpty
-                    ? AppColors.textSecondary
-                    : AppColors.textPrimary,
+                color: isEmpty ? secondaryText : null,
               ),
             ),
           ),

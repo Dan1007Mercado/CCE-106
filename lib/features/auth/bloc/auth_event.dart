@@ -2,6 +2,7 @@ import 'package:equatable/equatable.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../data/models/user_model.dart';
+import 'auth_state.dart';
 
 abstract class AuthEvent extends Equatable {
   const AuthEvent();
@@ -74,7 +75,13 @@ class AuthPasswordResetRequested extends AuthEvent {
 }
 
 class AuthSignOutRequested extends AuthEvent {
-  const AuthSignOutRequested();
+  const AuthSignOutRequested({this.message, this.feedbackType});
+
+  final String? message;
+  final AuthFeedbackType? feedbackType;
+
+  @override
+  List<Object?> get props => [message, feedbackType];
 }
 
 class AuthUserProfileUpdated extends AuthEvent {
