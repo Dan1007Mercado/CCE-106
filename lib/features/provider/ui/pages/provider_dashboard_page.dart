@@ -720,6 +720,21 @@ class _OpenJobRequestTile extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (job.photoUrl.trim().isNotEmpty) ...[
+          ClipRRect(
+            borderRadius: BorderRadius.circular(AppSizes.radiusMd),
+            child: Image.network(
+              job.photoUrl,
+              height: 180,
+              width: double.infinity,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                return const SizedBox.shrink();
+              },
+            ),
+          ),
+          const SizedBox(height: 14),
+        ],
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -772,6 +787,15 @@ class _OpenJobRequestTile extends StatelessWidget {
           spacing: 8,
           runSpacing: 8,
           children: [
+            _MetaChip(icon: Icons.category_outlined, label: job.category),
+            _MetaChip(
+              icon: Icons.payments_outlined,
+              label: 'PHP ${job.budget.toStringAsFixed(0)} budget',
+            ),
+            _MetaChip(
+              icon: Icons.speed_rounded,
+              label: 'Difficulty: ${job.difficulty}',
+            ),
             _MetaChip(
               icon: Icons.location_on_outlined,
               label: job.readableLocation,

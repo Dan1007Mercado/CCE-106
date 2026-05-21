@@ -11,6 +11,9 @@ class JobPostModel extends Equatable {
     required this.category,
     required this.location,
     required this.status,
+    required this.budget,
+    required this.difficulty,
+    required this.photoUrl,
     required this.createdAt,
     this.ratingFilter,
   });
@@ -23,6 +26,9 @@ class JobPostModel extends Equatable {
   final String category;
   final String location;
   final String status;
+  final double budget;
+  final String difficulty;
+  final String photoUrl;
   final DateTime createdAt;
   final double? ratingFilter;
 
@@ -45,6 +51,9 @@ class JobPostModel extends Equatable {
       category: map['category'] as String? ?? 'General',
       location: map['location'] as String? ?? '',
       status: map['status'] as String? ?? 'open',
+      budget: _readDouble(map['budget'] ?? map['price']),
+      difficulty: _readString(map['difficulty'], fallback: 'Moderate'),
+      photoUrl: map['photoUrl'] as String? ?? '',
       createdAt:
           _readDateTime(map['createdAt']) ??
           DateTime.fromMillisecondsSinceEpoch(0),
@@ -84,6 +93,19 @@ class JobPostModel extends Equatable {
     return double.tryParse(value.toString());
   }
 
+  static double _readDouble(dynamic value) {
+    if (value is num) {
+      return value.toDouble();
+    }
+
+    return double.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  static String _readString(dynamic value, {required String fallback}) {
+    final cleaned = value?.toString().trim() ?? '';
+    return cleaned.isEmpty ? fallback : cleaned;
+  }
+
   static bool _looksLikeCoordinates(String value) {
     final normalized = value.trim().toLowerCase();
     if (normalized.startsWith('lat ') || normalized.startsWith('lat:')) {
@@ -103,6 +125,9 @@ class JobPostModel extends Equatable {
     category,
     location,
     status,
+    budget,
+    difficulty,
+    photoUrl,
     createdAt,
     ratingFilter,
   ];

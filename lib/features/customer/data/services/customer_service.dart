@@ -121,8 +121,15 @@ class CustomerService {
     required String description,
     required String category,
     required String location,
+    required double budget,
+    required String difficulty,
     double? ratingFilter,
+    String photoUrl = '',
   }) async {
+    if (budget <= 0) {
+      throw Exception('Enter a valid budget.');
+    }
+
     await _jobsCollection.add({
       'customerId': customer.uid,
       'customerName': customer.displayName,
@@ -130,10 +137,72 @@ class CustomerService {
       'title': title.trim(),
       'description': description.trim(),
       'location': location.trim(),
+      'budget': budget,
+      'difficulty': difficulty.trim().isEmpty ? 'Moderate' : difficulty.trim(),
+      'photoUrl': photoUrl.trim(),
       'ratingFilter': ratingFilter,
       'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
       'status': 'open',
     });
+  }
+
+  Future<void> updateJob({
+    required String jobId,
+    required String currentUserId,
+    required String title,
+    required String description,
+    required String category,
+    required String location,
+    required double budget,
+    required String difficulty,
+    double? ratingFilter,
+    String? photoUrl,
+  }) async {
+    final doc = await _jobsCollection.doc(jobId).get();
+
+    if (!doc.exists) {
+      throw Exception('Job post not found.');
+    }
+
+    final data = doc.data();
+    if (data == null || data['customerId'] != currentUserId) {
+      throw Exception('You can only edit your own job post.');
+    }
+
+    if (budget <= 0) {
+      throw Exception('Enter a valid budget.');
+    }
+
+    await _jobsCollection.doc(jobId).update({
+      'title': title.trim(),
+      'description': description.trim(),
+      'category': category.trim(),
+      'location': location.trim(),
+      'budget': budget,
+      'difficulty': difficulty.trim().isEmpty ? 'Moderate' : difficulty.trim(),
+      'ratingFilter': ratingFilter,
+      if (photoUrl != null) 'photoUrl': photoUrl.trim(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> deleteJob({
+    required String jobId,
+    required String currentUserId,
+  }) async {
+    final doc = await _jobsCollection.doc(jobId).get();
+
+    if (!doc.exists) {
+      throw Exception('Job post not found.');
+    }
+
+    final data = doc.data();
+    if (data == null || data['customerId'] != currentUserId) {
+      throw Exception('You can only delete your own job post.');
+    }
+
+    await _jobsCollection.doc(jobId).delete();
   }
 
   Future<void> createBooking({

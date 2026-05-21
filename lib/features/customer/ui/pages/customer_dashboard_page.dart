@@ -1,13 +1,18 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/constants/app_sizes.dart';
 import '../../../../core/constants/app_strings.dart';
+import '../../../../core/services/job_photo_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/helpers.dart';
 import '../../../../core/widgets/brand_logo.dart';
+import '../../../../core/widgets/custom_button.dart';
+import '../../../../core/widgets/custom_textfield.dart';
 import '../../../../core/widgets/loading_indicator.dart';
 import '../../../../core/widgets/profile_avatar.dart';
 import '../../../../routes/app_router.dart';
@@ -35,9 +40,25 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
     'Carpentry',
   ];
 
+  static const List<String> _jobCategories = [
+    'Electrician',
+    'Masonry',
+    'Plumbing',
+    'Cleaning',
+    'Carpentry',
+  ];
+
+  static const List<String> _difficulties = [
+    'Easy',
+    'Moderate',
+    'Hard',
+    'Expert',
+  ];
+
   static const List<double> _ratings = [3, 4, 4.5];
 
   final CustomerService _customerService = CustomerService();
+  final JobPhotoService _jobPhotoService = JobPhotoService();
   final TextEditingController _searchController = TextEditingController();
   late final TabController _tabController;
   Timer? _welcomeTimer;
@@ -209,7 +230,10 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
                     },
                   ),
                   _CustomerJobsSection(
+                    currentUser: user,
                     jobsStream: _customerService.streamCustomerJobs(user.uid),
+                    onEditJob: (job) => _showEditJobSheet(user, job),
+                    onDeleteJob: (job) => _confirmDeleteJob(user, job),
                   ),
                 ],
               ),
@@ -365,6 +389,399 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
         );
       },
     );
+  }
+
+  Future<void> _showEditJobSheet(UserModel user, JobPostModel job) async {
+    if (job.customerId != user.uid) {
+      Helpers.showSnackBar(
+        context,
+        'You can only edit your own job post.',
+        isError: true,
+      );
+      return;
+    }
+
+    final formKey = GlobalKey<FormState>();
+    final titleController = TextEditingController(text: job.title);
+    final descriptionController = TextEditingController(text: job.description);
+    final locationController = TextEditingController(text: job.location);
+    final budgetController = TextEditingController(
+      text: job.budget == 0 ? '' : job.budget.toStringAsFixed(0),
+    );
+    var selectedCategory = _jobCategories.contains(job.category)
+        ? job.category
+        : _jobCategories.first;
+    var selectedDifficulty = _difficulties.contains(job.difficulty)
+        ? job.difficulty
+        : 'Moderate';
+    double? selectedRating = _ratings.contains(job.ratingFilter)
+        ? job.ratingFilter
+        : null;
+    var photoUrl = job.photoUrl;
+    XFile? selectedPhoto;
+    Uint8List? selectedPhotoBytes;
+    var isPickingPhoto = false;
+    var isSaving = false;
+
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        builder: (sheetContext) {
+          return StatefulBuilder(
+            builder: (sheetContext, setSheetState) {
+              Future<void> pickPhoto() async {
+                setSheetState(() {
+                  isPickingPhoto = true;
+                });
+
+                try {
+                  final photo = await _jobPhotoService.pickJobPhoto();
+                  if (photo == null) {
+                    return;
+                  }
+
+                  final bytes = await photo.readAsBytes();
+                  if (!sheetContext.mounted) {
+                    return;
+                  }
+
+                  setSheetState(() {
+                    selectedPhoto = photo;
+                    selectedPhotoBytes = bytes;
+                  });
+                } catch (error) {
+                  if (!sheetContext.mounted) {
+                    return;
+                  }
+
+                  Helpers.showSnackBar(
+                    sheetContext,
+                    error.toString().replaceFirst('Exception: ', ''),
+                    isError: true,
+                  );
+                } finally {
+                  if (sheetContext.mounted) {
+                    setSheetState(() {
+                      isPickingPhoto = false;
+                    });
+                  }
+                }
+              }
+
+              Future<void> save() async {
+                if (!formKey.currentState!.validate()) {
+                  return;
+                }
+
+                final budget = double.parse(budgetController.text.trim());
+                setSheetState(() {
+                  isSaving = true;
+                });
+
+                try {
+                  var updatedPhotoUrl = photoUrl;
+                  if (selectedPhoto != null) {
+                    updatedPhotoUrl = await _jobPhotoService.uploadJobPhoto(
+                      userId: user.uid,
+                      image: selectedPhoto!,
+                    );
+                  }
+
+                  await _customerService.updateJob(
+                    jobId: job.jobId,
+                    currentUserId: user.uid,
+                    title: titleController.text,
+                    description: descriptionController.text,
+                    category: selectedCategory,
+                    location: locationController.text,
+                    budget: budget,
+                    difficulty: selectedDifficulty,
+                    ratingFilter: selectedRating,
+                    photoUrl: updatedPhotoUrl,
+                  );
+
+                  if (!mounted || !sheetContext.mounted) {
+                    return;
+                  }
+
+                  Navigator.of(sheetContext).pop();
+                  Helpers.showSnackBar(context, 'Job post updated.');
+                } catch (error) {
+                  if (!sheetContext.mounted) {
+                    return;
+                  }
+
+                  Helpers.showSnackBar(
+                    sheetContext,
+                    error.toString().replaceFirst('Exception: ', ''),
+                    isError: true,
+                  );
+                } finally {
+                  if (sheetContext.mounted) {
+                    setSheetState(() {
+                      isSaving = false;
+                    });
+                  }
+                }
+              }
+
+              return SafeArea(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    AppSizes.pagePadding,
+                    AppSizes.pagePadding,
+                    AppSizes.pagePadding,
+                    MediaQuery.of(sheetContext).viewInsets.bottom +
+                        AppSizes.pagePadding,
+                  ),
+                  child: Form(
+                    key: formKey,
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            'Edit job post',
+                            style: Theme.of(sheetContext).textTheme.titleLarge
+                                ?.copyWith(fontWeight: FontWeight.w800),
+                          ),
+                          const SizedBox(height: AppSizes.fieldGap),
+                          CustomTextField(
+                            controller: titleController,
+                            label: 'Job title',
+                            prefixIcon: Icons.assignment_outlined,
+                            validator: _requiredValidator,
+                          ),
+                          const SizedBox(height: AppSizes.fieldGap),
+                          CustomTextField(
+                            controller: descriptionController,
+                            label: 'Description',
+                            prefixIcon: Icons.notes_rounded,
+                            maxLines: 4,
+                            validator: _requiredValidator,
+                          ),
+                          const SizedBox(height: AppSizes.fieldGap),
+                          DropdownButtonFormField<String>(
+                            initialValue: selectedCategory,
+                            decoration: const InputDecoration(
+                              labelText: 'Category',
+                              prefixIcon: Icon(Icons.category_outlined),
+                            ),
+                            items: _jobCategories
+                                .map(
+                                  (category) => DropdownMenuItem(
+                                    value: category,
+                                    child: Text(category),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: isSaving
+                                ? null
+                                : (value) {
+                                    if (value == null) {
+                                      return;
+                                    }
+                                    setSheetState(() {
+                                      selectedCategory = value;
+                                    });
+                                  },
+                          ),
+                          const SizedBox(height: AppSizes.fieldGap),
+                          CustomTextField(
+                            controller: locationController,
+                            label: 'Location',
+                            prefixIcon: Icons.location_on_outlined,
+                            maxLines: 2,
+                            validator: _requiredValidator,
+                          ),
+                          const SizedBox(height: AppSizes.fieldGap),
+                          CustomTextField(
+                            controller: budgetController,
+                            label: 'Budget / Offered price',
+                            hintText: '500',
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            prefixIcon: Icons.payments_outlined,
+                            validator: _budgetValidator,
+                          ),
+                          const SizedBox(height: AppSizes.fieldGap),
+                          DropdownButtonFormField<String>(
+                            initialValue: selectedDifficulty,
+                            decoration: const InputDecoration(
+                              labelText: 'Difficulty',
+                              prefixIcon: Icon(Icons.speed_rounded),
+                            ),
+                            items: _difficulties
+                                .map(
+                                  (difficulty) => DropdownMenuItem(
+                                    value: difficulty,
+                                    child: Text(difficulty),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: isSaving
+                                ? null
+                                : (value) {
+                                    if (value == null) {
+                                      return;
+                                    }
+                                    setSheetState(() {
+                                      selectedDifficulty = value;
+                                    });
+                                  },
+                          ),
+                          const SizedBox(height: AppSizes.fieldGap),
+                          DropdownButtonFormField<double?>(
+                            initialValue: selectedRating,
+                            decoration: const InputDecoration(
+                              labelText: 'Preferred rating filter',
+                              prefixIcon: Icon(Icons.star_outline_rounded),
+                            ),
+                            items: const [
+                              DropdownMenuItem<double?>(
+                                value: null,
+                                child: Text('No preference'),
+                              ),
+                              DropdownMenuItem<double?>(
+                                value: 3,
+                                child: Text('3 stars and above'),
+                              ),
+                              DropdownMenuItem<double?>(
+                                value: 4,
+                                child: Text('4 stars and above'),
+                              ),
+                              DropdownMenuItem<double?>(
+                                value: 4.5,
+                                child: Text('4.5 stars and above'),
+                              ),
+                            ],
+                            onChanged: isSaving
+                                ? null
+                                : (value) {
+                                    setSheetState(() {
+                                      selectedRating = value;
+                                    });
+                                  },
+                          ),
+                          const SizedBox(height: AppSizes.fieldGap),
+                          _EditableJobPhoto(
+                            photoUrl: photoUrl,
+                            selectedPhotoBytes: selectedPhotoBytes,
+                            isPicking: isPickingPhoto,
+                            onPick: isSaving ? null : pickPhoto,
+                            onRemove: isSaving
+                                ? null
+                                : () {
+                                    setSheetState(() {
+                                      photoUrl = '';
+                                      selectedPhoto = null;
+                                      selectedPhotoBytes = null;
+                                    });
+                                  },
+                          ),
+                          const SizedBox(height: AppSizes.sectionGap),
+                          CustomButton(
+                            label: 'Save changes',
+                            icon: Icons.save_rounded,
+                            isLoading: isSaving,
+                            onPressed: save,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      );
+    } finally {
+      titleController.dispose();
+      descriptionController.dispose();
+      locationController.dispose();
+      budgetController.dispose();
+    }
+  }
+
+  Future<void> _confirmDeleteJob(UserModel user, JobPostModel job) async {
+    if (job.customerId != user.uid) {
+      Helpers.showSnackBar(
+        context,
+        'You can only delete your own job post.',
+        isError: true,
+      );
+      return;
+    }
+
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Delete job post?'),
+          content: const Text(
+            'This will permanently remove your posted job request.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldDelete != true) {
+      return;
+    }
+
+    try {
+      await _customerService.deleteJob(
+        jobId: job.jobId,
+        currentUserId: user.uid,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      Helpers.showSnackBar(context, 'Job post deleted.');
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      Helpers.showSnackBar(
+        context,
+        error.toString().replaceFirst('Exception: ', ''),
+        isError: true,
+      );
+    }
+  }
+
+  String? _requiredValidator(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'This field is required.';
+    }
+
+    return null;
+  }
+
+  String? _budgetValidator(String? value) {
+    final parsed = double.tryParse(value?.trim() ?? '');
+    if (parsed == null || parsed <= 0) {
+      return 'Enter a valid budget.';
+    }
+
+    return null;
   }
 
   void _handleNotificationsTap(UserModel user) {
@@ -592,9 +1009,17 @@ class _ServicesFeedSection extends StatelessWidget {
 }
 
 class _CustomerJobsSection extends StatelessWidget {
-  const _CustomerJobsSection({required this.jobsStream});
+  const _CustomerJobsSection({
+    required this.currentUser,
+    required this.jobsStream,
+    required this.onEditJob,
+    required this.onDeleteJob,
+  });
 
+  final UserModel currentUser;
   final Stream<List<JobPostModel>> jobsStream;
+  final ValueChanged<JobPostModel> onEditJob;
+  final ValueChanged<JobPostModel> onDeleteJob;
 
   @override
   Widget build(BuildContext context) {
@@ -628,7 +1053,12 @@ class _CustomerJobsSection extends StatelessWidget {
               )
             else
               for (final job in jobs) ...[
-                _JobFeedCard(job: job),
+                _JobFeedCard(
+                  job: job,
+                  canManage: job.customerId == currentUser.uid,
+                  onEdit: () => onEditJob(job),
+                  onDelete: () => onDeleteJob(job),
+                ),
                 const SizedBox(height: 16),
               ],
           ],
@@ -868,9 +1298,17 @@ class _ServiceFeedCard extends StatelessWidget {
 }
 
 class _JobFeedCard extends StatelessWidget {
-  const _JobFeedCard({required this.job});
+  const _JobFeedCard({
+    required this.job,
+    required this.canManage,
+    required this.onEdit,
+    required this.onDelete,
+  });
 
   final JobPostModel job;
+  final bool canManage;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -883,13 +1321,32 @@ class _JobFeedCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (job.photoUrl.trim().isNotEmpty) ...[
+              ClipRRect(
+                borderRadius: BorderRadius.circular(AppSizes.radiusMd),
+                child: Image.network(
+                  job.photoUrl,
+                  height: 180,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return const SizedBox.shrink();
+                  },
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                CircleAvatar(
-                  backgroundColor: tokens.accentSoft,
-                  child: Icon(
-                    Icons.campaign_outlined,
-                    color: AppTheme.resolveOnColor(tokens.accentSoft),
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: CircleAvatar(
+                    backgroundColor: tokens.accentSoft,
+                    child: Icon(
+                      Icons.campaign_outlined,
+                      color: AppTheme.resolveOnColor(tokens.accentSoft),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -915,6 +1372,24 @@ class _JobFeedCard extends StatelessWidget {
                     ],
                   ),
                 ),
+                if (canManage)
+                  PopupMenuButton<String>(
+                    tooltip: 'Job actions',
+                    onSelected: (value) {
+                      switch (value) {
+                        case 'edit':
+                          onEdit();
+                          break;
+                        case 'delete':
+                          onDelete();
+                          break;
+                      }
+                    },
+                    itemBuilder: (context) => const [
+                      PopupMenuItem(value: 'edit', child: Text('Edit')),
+                      PopupMenuItem(value: 'delete', child: Text('Delete')),
+                    ],
+                  ),
                 _InfoPill(label: job.status),
               ],
             ),
@@ -941,6 +1416,8 @@ class _JobFeedCard extends StatelessWidget {
               runSpacing: 10,
               children: [
                 _InfoPill(label: job.category),
+                _InfoPill(label: 'PHP ${job.budget.toStringAsFixed(0)} budget'),
+                _InfoPill(label: 'Difficulty: ${job.difficulty}'),
                 _InfoPill(label: job.readableLocation),
                 if (job.ratingFilter != null)
                   _InfoPill(
@@ -952,6 +1429,77 @@ class _JobFeedCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _EditableJobPhoto extends StatelessWidget {
+  const _EditableJobPhoto({
+    required this.photoUrl,
+    required this.selectedPhotoBytes,
+    required this.isPicking,
+    required this.onPick,
+    required this.onRemove,
+  });
+
+  final String photoUrl;
+  final Uint8List? selectedPhotoBytes;
+  final bool isPicking;
+  final VoidCallback? onPick;
+  final VoidCallback? onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasExistingPhoto = photoUrl.trim().isNotEmpty;
+    final hasPhoto = selectedPhotoBytes != null || hasExistingPhoto;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (selectedPhotoBytes != null)
+          ClipRRect(
+            borderRadius: BorderRadius.circular(AppSizes.radiusMd),
+            child: Image.memory(
+              selectedPhotoBytes!,
+              height: 180,
+              width: double.infinity,
+              fit: BoxFit.cover,
+            ),
+          )
+        else if (hasExistingPhoto)
+          ClipRRect(
+            borderRadius: BorderRadius.circular(AppSizes.radiusMd),
+            child: Image.network(
+              photoUrl,
+              height: 180,
+              width: double.infinity,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                return const SizedBox.shrink();
+              },
+            ),
+          ),
+        if (hasPhoto) const SizedBox(height: 10),
+        OutlinedButton.icon(
+          onPressed: isPicking ? null : onPick,
+          icon: isPicking
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.add_photo_alternate_outlined),
+          label: Text(hasPhoto ? 'Change photo' : 'Add job photo'),
+        ),
+        if (hasPhoto) ...[
+          const SizedBox(height: 6),
+          TextButton.icon(
+            onPressed: isPicking ? null : onRemove,
+            icon: const Icon(Icons.delete_outline_rounded),
+            label: const Text('Remove photo'),
+          ),
+        ],
+      ],
     );
   }
 }

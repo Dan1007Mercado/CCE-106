@@ -36,17 +36,25 @@ class CustomTextField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final effectiveMaxLines = obscureText ? 1 : maxLines;
+    final effectiveKeyboardType = effectiveMaxLines > 1
+        ? TextInputType.multiline
+        : keyboardType;
+    final effectiveTextInputAction = effectiveMaxLines > 1
+        ? TextInputAction.newline
+        : textInputAction;
+
     return TextFormField(
       controller: controller,
       validator: validator,
       obscureText: obscureText,
-      keyboardType: keyboardType,
-      textInputAction: textInputAction,
+      keyboardType: effectiveKeyboardType,
+      textInputAction: effectiveTextInputAction,
       autofillHints: autofillHints,
       onFieldSubmitted: onFieldSubmitted,
       enabled: enabled,
       readOnly: readOnly,
-      maxLines: obscureText ? 1 : maxLines,
+      maxLines: effectiveMaxLines,
       decoration: InputDecoration(
         labelText: label,
         hintText: hintText,

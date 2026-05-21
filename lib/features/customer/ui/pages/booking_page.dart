@@ -29,6 +29,8 @@ class _BookingPageState extends State<BookingPage> {
     '03:00 PM - 05:00 PM',
   ];
 
+  static const String _customTimeSlotOption = 'Custom time';
+
   static const List<String> _paymentMethods = [
     'Mock Wallet',
     'Test Card',
@@ -44,6 +46,8 @@ class _BookingPageState extends State<BookingPage> {
     DateTime.now().add(const Duration(days: 1)),
   );
   String _selectedTimeSlot = _timeSlots.first;
+  TimeOfDay? _customStartTime;
+  TimeOfDay? _customEndTime;
   String _selectedPaymentMethod = _paymentMethods.first;
   bool _isSubmitting = false;
   bool _didPrefillAddress = false;
@@ -131,22 +135,74 @@ class _BookingPageState extends State<BookingPage> {
                       Wrap(
                         spacing: 8,
                         runSpacing: 8,
-                        children: _timeSlots
-                            .map(
-                              (slot) => ChoiceChip(
-                                label: Text(slot),
-                                selected: _selectedTimeSlot == slot,
-                                onSelected: _isSubmitting
-                                    ? null
-                                    : (_) {
-                                        setState(() {
-                                          _selectedTimeSlot = slot;
-                                        });
-                                      },
-                              ),
-                            )
-                            .toList(),
+                        children: [
+                          ..._timeSlots.map(
+                            (slot) => ChoiceChip(
+                              label: Text(slot),
+                              selected: _selectedTimeSlot == slot,
+                              onSelected: _isSubmitting
+                                  ? null
+                                  : (_) {
+                                      setState(() {
+                                        _selectedTimeSlot = slot;
+                                      });
+                                    },
+                            ),
+                          ),
+                          ChoiceChip(
+                            label: const Text(_customTimeSlotOption),
+                            selected:
+                                _selectedTimeSlot == _customTimeSlotOption,
+                            onSelected: _isSubmitting
+                                ? null
+                                : (_) {
+                                    setState(() {
+                                      _selectedTimeSlot = _customTimeSlotOption;
+                                    });
+                                  },
+                          ),
+                        ],
                       ),
+                      if (_selectedTimeSlot == _customTimeSlotOption) ...[
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 10,
+                          children: [
+                            OutlinedButton.icon(
+                              onPressed: _isSubmitting
+                                  ? null
+                                  : () => _pickCustomTime(isStart: true),
+                              icon: const Icon(Icons.schedule_rounded),
+                              label: Text(
+                                _customStartTime == null
+                                    ? 'Start time'
+                                    : 'Start ${_formatTimeOfDay(_customStartTime!)}',
+                              ),
+                            ),
+                            OutlinedButton.icon(
+                              onPressed: _isSubmitting
+                                  ? null
+                                  : () => _pickCustomTime(isStart: false),
+                              icon: const Icon(Icons.schedule_outlined),
+                              label: Text(
+                                _customEndTime == null
+                                    ? 'End time'
+                                    : 'End ${_formatTimeOfDay(_customEndTime!)}',
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (_resolvedSelectedTimeSlot.isNotEmpty) ...[
+                          const SizedBox(height: 10),
+                          Text(
+                            'Selected: $_resolvedSelectedTimeSlot',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ],
                       const SizedBox(height: AppSizes.fieldGap),
                       CustomTextField(
                         controller: _addressController,
@@ -164,7 +220,6 @@ class _BookingPageState extends State<BookingPage> {
                             'Gate instructions, issue details, or tools needed',
                         prefixIcon: Icons.notes_rounded,
                         maxLines: 4,
-                        textInputAction: TextInputAction.newline,
                       ),
                     ],
                   ),
@@ -284,8 +339,49 @@ class _BookingPageState extends State<BookingPage> {
     });
   }
 
+  Future<void> _pickCustomTime({required bool isStart}) async {
+    final initialTime = isStart
+        ? _customStartTime ?? const TimeOfDay(hour: 8, minute: 0)
+        : _customEndTime ?? const TimeOfDay(hour: 10, minute: 0);
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: initialTime,
+    );
+
+    if (picked == null) {
+      return;
+    }
+
+    setState(() {
+      if (isStart) {
+        _customStartTime = picked;
+      } else {
+        _customEndTime = picked;
+      }
+    });
+  }
+
   Future<void> _confirm(UserModel user, ServiceListingModel service) async {
     if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    final selectedTimeSlot = _resolvedSelectedTimeSlot;
+    if (selectedTimeSlot.isEmpty) {
+      Helpers.showSnackBar(
+        context,
+        'Choose an available time slot.',
+        isError: true,
+      );
+      return;
+    }
+
+    if (_selectedTimeSlot == _customTimeSlotOption && !_isCustomEndAfterStart) {
+      Helpers.showSnackBar(
+        context,
+        'Choose a custom end time after the start time.',
+        isError: true,
+      );
       return;
     }
 
@@ -298,7 +394,7 @@ class _BookingPageState extends State<BookingPage> {
         customer: user,
         service: service,
         selectedDate: _selectedDate,
-        selectedTimeSlot: _selectedTimeSlot,
+        selectedTimeSlot: selectedTimeSlot,
         serviceAddress: _addressController.text,
         notes: _notesController.text,
         paymentMethod: _selectedPaymentMethod,
@@ -339,6 +435,32 @@ class _BookingPageState extends State<BookingPage> {
 
     return null;
   }
+
+  String get _resolvedSelectedTimeSlot {
+    if (_selectedTimeSlot != _customTimeSlotOption) {
+      return _selectedTimeSlot;
+    }
+
+    final startTime = _customStartTime;
+    final endTime = _customEndTime;
+    if (startTime == null || endTime == null) {
+      return '';
+    }
+
+    return '${_formatTimeOfDay(startTime)} - ${_formatTimeOfDay(endTime)}';
+  }
+
+  bool get _isCustomEndAfterStart {
+    final startTime = _customStartTime;
+    final endTime = _customEndTime;
+    if (startTime == null || endTime == null) {
+      return false;
+    }
+
+    return _timeOfDayToMinutes(endTime) > _timeOfDayToMinutes(startTime);
+  }
+
+  int _timeOfDayToMinutes(TimeOfDay value) => value.hour * 60 + value.minute;
 }
 
 class _BookingHero extends StatelessWidget {
@@ -523,6 +645,13 @@ String _formatDate(DateTime value) {
   ];
 
   return '${months[value.month - 1]} ${value.day}, ${value.year}';
+}
+
+String _formatTimeOfDay(TimeOfDay value) {
+  final hourOfPeriod = value.hourOfPeriod == 0 ? 12 : value.hourOfPeriod;
+  final minute = value.minute.toString().padLeft(2, '0');
+  final period = value.period == DayPeriod.am ? 'AM' : 'PM';
+  return '$hourOfPeriod:$minute $period';
 }
 
 String _formatCurrency(double value) => 'PHP ${value.toStringAsFixed(2)}';
