@@ -1389,7 +1389,7 @@ class _CustomerJobsSection extends StatelessWidget {
   }
 }
 
-class _CustomerBookingsSection extends StatelessWidget {
+class _CustomerBookingsSection extends StatefulWidget {
   const _CustomerBookingsSection({
     required this.bookingsStream,
     required this.onCancelBooking,
@@ -1403,9 +1403,24 @@ class _CustomerBookingsSection extends StatelessWidget {
   final ValueChanged<ProviderBookingModel> onOpenChat;
 
   @override
+  State<_CustomerBookingsSection> createState() =>
+      _CustomerBookingsSectionState();
+}
+
+class _CustomerBookingsSectionState extends State<_CustomerBookingsSection> {
+  static const List<String> _filters = [
+    'All',
+    'Pending',
+    'Completed',
+    'Cancelled',
+  ];
+
+  String _selectedFilter = 'All';
+
+  @override
   Widget build(BuildContext context) {
     return StreamBuilder<List<ProviderBookingModel>>(
-      stream: bookingsStream,
+      stream: widget.bookingsStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting &&
             !snapshot.hasData) {
@@ -1413,14 +1428,10 @@ class _CustomerBookingsSection extends StatelessWidget {
         }
 
         final bookings = snapshot.data ?? const <ProviderBookingModel>[];
-        final pendingBookings = bookings.where(_isPendingBooking).toList();
-        final completedBookings = bookings.where(_isCompletedBooking).toList();
-        final cancelledBookings = bookings.where(_isCancelledBooking).toList();
-        final otherBookings = bookings.where((booking) {
-          return !_isPendingBooking(booking) &&
-              !_isCompletedBooking(booking) &&
-              !_isCancelledBooking(booking);
-        }).toList();
+        final filteredBookings = bookings
+            .where((booking) => _matchesFilter(booking, _selectedFilter))
+            .toList();
+        final emptyCopy = _emptyCopyForFilter(_selectedFilter);
 
         return ListView(
           padding: const EdgeInsets.fromLTRB(
@@ -1435,280 +1446,180 @@ class _CustomerBookingsSection extends StatelessWidget {
               description:
                   'Track service requests, contact providers, and cancel active bookings.',
             ),
+            const SizedBox(height: 14),
+            _BookingStatusFilter(
+              selectedFilter: _selectedFilter,
+              filters: _filters,
+              onChanged: (filter) {
+                setState(() {
+                  _selectedFilter = filter;
+                });
+              },
+            ),
             const SizedBox(height: 18),
-            if (bookings.isEmpty)
-              const _EmptyFeedCard(
-                title: 'No bookings yet.',
-                description:
-                    'Booked services will appear here with contact and payment status.',
+            if (filteredBookings.isEmpty)
+              _EmptyFeedCard(
+                title: emptyCopy.title,
+                description: emptyCopy.description,
               )
-            else ...[
-              _BookingGroupSection(
-                title: 'Pending',
-                description:
-                    'Requests waiting for provider action or in progress.',
-                icon: Icons.pending_actions_rounded,
-                bookings: pendingBookings,
-                emptyTitle: 'No pending bookings.',
-                emptyDescription:
-                    'New requests and accepted bookings will appear here.',
-                onCancelBooking: onCancelBooking,
-                onCallProvider: onCallProvider,
-                onOpenChat: onOpenChat,
-              ),
-              const SizedBox(height: 22),
-              _BookingGroupSection(
-                title: 'Completed',
-                description: 'Finished services and released payments.',
-                icon: Icons.task_alt_rounded,
-                bookings: completedBookings,
-                emptyTitle: 'No completed bookings yet.',
-                emptyDescription:
-                    'Finished services will move into this section.',
-                onCancelBooking: onCancelBooking,
-                onCallProvider: onCallProvider,
-                onOpenChat: onOpenChat,
-              ),
-              const SizedBox(height: 22),
-              _BookingGroupSection(
-                title: 'Cancelled',
-                description: 'Cancelled or declined service requests.',
-                icon: Icons.cancel_outlined,
-                bookings: cancelledBookings,
-                emptyTitle: 'No cancelled bookings.',
-                emptyDescription:
-                    'Cancelled and declined requests will appear here.',
-                onCancelBooking: onCancelBooking,
-                onCallProvider: onCallProvider,
-                onOpenChat: onOpenChat,
-              ),
-              if (otherBookings.isNotEmpty) ...[
-                const SizedBox(height: 22),
-                _BookingGroupSection(
-                  title: 'Other',
-                  description: 'Bookings with another status.',
-                  icon: Icons.info_outline_rounded,
-                  bookings: otherBookings,
-                  emptyTitle: 'No other bookings.',
-                  emptyDescription: 'Unexpected booking statuses appear here.',
-                  onCancelBooking: onCancelBooking,
-                  onCallProvider: onCallProvider,
-                  onOpenChat: onOpenChat,
+            else
+              for (final booking in filteredBookings) ...[
+                _CustomerBookingCard(
+                  booking: booking,
+                  onCancel: () => widget.onCancelBooking(booking),
+                  onCallProvider: () => widget.onCallProvider(booking),
+                  onOpenChat: () => widget.onOpenChat(booking),
                 ),
+                const SizedBox(height: 16),
               ],
-            ],
           ],
         );
       },
     );
   }
 
-  bool _isPendingBooking(ProviderBookingModel booking) {
-    return booking.isPending || booking.isAccepted;
+  bool _matchesFilter(ProviderBookingModel booking, String filter) {
+    switch (filter) {
+      case 'Pending':
+        return booking.isPending || booking.isAccepted;
+      case 'Completed':
+        return booking.isCompleted;
+      case 'Cancelled':
+        final status = booking.status.trim().toLowerCase();
+        return booking.isCancelled ||
+            status == 'declined' ||
+            status.startsWith('cancelled');
+      case 'All':
+      default:
+        return true;
+    }
   }
 
-  bool _isCompletedBooking(ProviderBookingModel booking) {
-    return booking.isCompleted;
-  }
-
-  bool _isCancelledBooking(ProviderBookingModel booking) {
-    final status = booking.status.trim().toLowerCase();
-    return booking.isCancelled ||
-        status == 'declined' ||
-        status.startsWith('cancelled');
-  }
-}
-
-class _BookingGroupSection extends StatelessWidget {
-  const _BookingGroupSection({
-    required this.title,
-    required this.description,
-    required this.icon,
-    required this.bookings,
-    required this.emptyTitle,
-    required this.emptyDescription,
-    required this.onCancelBooking,
-    required this.onCallProvider,
-    required this.onOpenChat,
-  });
-
-  final String title;
-  final String description;
-  final IconData icon;
-  final List<ProviderBookingModel> bookings;
-  final String emptyTitle;
-  final String emptyDescription;
-  final ValueChanged<ProviderBookingModel> onCancelBooking;
-  final ValueChanged<ProviderBookingModel> onCallProvider;
-  final ValueChanged<ProviderBookingModel> onOpenChat;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _BookingGroupHeader(
-          title: title,
-          description: description,
-          icon: icon,
-          count: bookings.length,
-        ),
-        const SizedBox(height: 12),
-        if (bookings.isEmpty)
-          _BookingGroupEmpty(title: emptyTitle, description: emptyDescription)
-        else
-          for (final booking in bookings) ...[
-            _CustomerBookingCard(
-              booking: booking,
-              onCancel: () => onCancelBooking(booking),
-              onCallProvider: () => onCallProvider(booking),
-              onOpenChat: () => onOpenChat(booking),
-            ),
-            if (booking != bookings.last) const SizedBox(height: 16),
-          ],
-      ],
-    );
+  _BookingEmptyCopy _emptyCopyForFilter(String filter) {
+    return switch (filter) {
+      'Pending' => const _BookingEmptyCopy(
+        title: 'No pending bookings.',
+        description: 'New requests and accepted bookings will appear here.',
+      ),
+      'Completed' => const _BookingEmptyCopy(
+        title: 'No completed bookings yet.',
+        description: 'Finished services will move into this section.',
+      ),
+      'Cancelled' => const _BookingEmptyCopy(
+        title: 'No cancelled bookings.',
+        description: 'Cancelled and declined requests will appear here.',
+      ),
+      _ => const _BookingEmptyCopy(
+        title: 'No bookings yet.',
+        description:
+            'Booked services will appear here with contact and payment status.',
+      ),
+    };
   }
 }
 
-class _BookingGroupHeader extends StatelessWidget {
-  const _BookingGroupHeader({
-    required this.title,
-    required this.description,
-    required this.icon,
-    required this.count,
-  });
+class _BookingEmptyCopy {
+  const _BookingEmptyCopy({required this.title, required this.description});
 
   final String title;
   final String description;
-  final IconData icon;
-  final int count;
+}
+
+class _BookingStatusFilter extends StatelessWidget {
+  const _BookingStatusFilter({
+    required this.selectedFilter,
+    required this.filters,
+    required this.onChanged,
+  });
+
+  final String selectedFilter;
+  final List<String> filters;
+  final ValueChanged<String> onChanged;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final background = theme.tokens.primarySoft;
+    final unselectedColor = theme.textTheme.bodyMedium?.color;
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: theme.colorScheme.primary.withValues(alpha: 0.10),
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surface,
-              shape: BoxShape.circle,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final useCompactLayout = constraints.maxWidth < 390;
+
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: background,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: theme.colorScheme.primary.withValues(alpha: 0.10),
             ),
-            child: Icon(icon, color: theme.colorScheme.primary, size: 20),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: AppTheme.resolveOnColor(background),
-                    fontWeight: FontWeight.w800,
+          child: Row(
+            children: [
+              for (final filter in filters) ...[
+                Expanded(
+                  child: _BookingStatusFilterButton(
+                    label: filter,
+                    selected: filter == selectedFilter,
+                    unselectedColor: unselectedColor,
+                    compact: useCompactLayout,
+                    onPressed: () => onChanged(filter),
                   ),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  description,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: AppTheme.resolveOnColor(
-                      background,
-                    ).withValues(alpha: 0.72),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+                if (filter != filters.last) const SizedBox(width: 4),
               ],
-            ),
+            ],
           ),
-          const SizedBox(width: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surface,
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Text(
-              count.toString(),
-              style: theme.textTheme.labelLarge?.copyWith(
-                color: theme.colorScheme.primary,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
 
-class _BookingGroupEmpty extends StatelessWidget {
-  const _BookingGroupEmpty({required this.title, required this.description});
+class _BookingStatusFilterButton extends StatelessWidget {
+  const _BookingStatusFilterButton({
+    required this.label,
+    required this.selected,
+    required this.unselectedColor,
+    required this.compact,
+    required this.onPressed,
+  });
 
-  final String title;
-  final String description;
+  final String label;
+  final bool selected;
+  final Color? unselectedColor;
+  final bool compact;
+  final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.tokens.subtleSurface,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.45),
-        ),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            Icons.inbox_outlined,
-            size: 22,
-            color: theme.colorScheme.primary,
+    return Material(
+      color: selected ? theme.colorScheme.primary : Colors.transparent,
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(999),
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: compact ? 6 : 10,
+            vertical: 10,
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  description,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.textTheme.bodySmall?.color?.withValues(
-                      alpha: 0.70,
-                    ),
-                    height: 1.35,
-                  ),
-                ),
-              ],
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: selected ? theme.colorScheme.onPrimary : unselectedColor,
+              fontSize: compact ? 12 : null,
+              fontWeight: selected ? FontWeight.w800 : FontWeight.w700,
             ),
           ),
-        ],
+        ),
       ),
     );
   }
