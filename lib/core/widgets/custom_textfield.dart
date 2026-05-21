@@ -17,6 +17,8 @@ class CustomTextField extends StatelessWidget {
     this.enabled = true,
     this.readOnly = false,
     this.maxLines = 1,
+    this.minLines,
+    this.expands = false,
   });
 
   final TextEditingController controller;
@@ -32,15 +34,24 @@ class CustomTextField extends StatelessWidget {
   final void Function(String)? onFieldSubmitted;
   final bool enabled;
   final bool readOnly;
-  final int maxLines;
+  final int? maxLines;
+  final int? minLines;
+  final bool expands;
 
   @override
   Widget build(BuildContext context) {
-    final effectiveMaxLines = obscureText ? 1 : maxLines;
-    final effectiveKeyboardType = effectiveMaxLines > 1
+    final effectiveMinLines = obscureText || expands ? null : minLines;
+    final effectiveMaxLines = obscureText
+        ? 1
+        : expands
+        ? null
+        : maxLines;
+    final isMultiline =
+        expands || (effectiveMaxLines != null && effectiveMaxLines > 1);
+    final effectiveKeyboardType = isMultiline
         ? TextInputType.multiline
         : keyboardType;
-    final effectiveTextInputAction = effectiveMaxLines > 1
+    final effectiveTextInputAction = isMultiline
         ? TextInputAction.newline
         : textInputAction;
 
@@ -54,6 +65,8 @@ class CustomTextField extends StatelessWidget {
       onFieldSubmitted: onFieldSubmitted,
       enabled: enabled,
       readOnly: readOnly,
+      expands: expands,
+      minLines: effectiveMinLines,
       maxLines: effectiveMaxLines,
       decoration: InputDecoration(
         labelText: label,

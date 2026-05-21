@@ -129,6 +129,7 @@ class ProviderService {
       'serviceId': doc.id,
       'providerId': provider.uid,
       'providerName': provider.displayName,
+      'providerPhone': provider.phone.trim(),
       'category': category.trim(),
       'title': title.trim(),
       'description': description.trim(),
@@ -149,6 +150,47 @@ class ProviderService {
       'status': status,
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
+  }
+
+  Future<void> markBookingAsDone({
+    required String bookingId,
+    required String providerId,
+  }) async {
+    final bookingRef = _bookingsCollection.doc(bookingId);
+    final bookingSnapshot = await bookingRef.get();
+
+    if (!bookingSnapshot.exists) {
+      throw Exception('Booking not found.');
+    }
+
+    final booking = bookingSnapshot.data();
+    if (booking == null || booking['providerId'] != providerId) {
+      throw Exception('You can only complete your own booking.');
+    }
+
+    final paymentId = booking['paymentId'] as String?;
+    if (paymentId == null || paymentId.isEmpty) {
+      throw Exception('Payment record not found.');
+    }
+
+    final paymentRef = _paymentsCollection.doc(paymentId);
+    final batch = _firestore.batch();
+
+    batch.update(bookingRef, {
+      'status': 'completed',
+      'paymentStatus': 'paid',
+      'completedAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    batch.update(paymentRef, {
+      'status': 'paid',
+      'isReleasedToProvider': true,
+      'releasedAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    await batch.commit();
   }
 
   Future<void> addAvailabilitySlot({

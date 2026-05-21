@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/constants/app_sizes.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/widgets/custom_button.dart';
 import '../../../../routes/app_router.dart';
-import '../../../auth/bloc/auth_bloc.dart';
 import '../../data/models/service_listing_model.dart';
 
 class ServiceDetailPage extends StatefulWidget {
@@ -21,7 +19,6 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
   @override
   Widget build(BuildContext context) {
     final service = widget.service;
-    final user = context.select((AuthBloc bloc) => bloc.state.user);
     final theme = Theme.of(context);
     final tokens = theme.tokens;
 
@@ -138,9 +135,7 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
                   ),
                   const SizedBox(height: 18),
                   Text(
-                    user != null && user.isReadyForBooking
-                        ? 'Your customer profile has the phone number and GPS location required for booking.'
-                        : 'Complete your 09XXXXXXXXX mobile number and GPS location before confirming a booking.',
+                    'You can book with a valid service address. Payment stays pending until the provider marks the service as done.',
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: theme.textTheme.bodyMedium?.color?.withValues(
                         alpha: 0.72,
@@ -162,16 +157,6 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
               ).pushNamed(AppRouter.bookingRoute, arguments: service);
             },
           ),
-          if (user != null && !user.isReadyForBooking) ...[
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: () {
-                Navigator.of(context).pushNamed(AppRouter.editProfileRoute);
-              },
-              icon: const Icon(Icons.person_outline_rounded),
-              label: const Text('Complete profile'),
-            ),
-          ],
         ],
       ),
     );

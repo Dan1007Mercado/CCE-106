@@ -5,6 +5,7 @@ class ServiceListingModel extends Equatable {
     required this.serviceId,
     required this.providerId,
     required this.providerName,
+    required this.providerPhone,
     required this.category,
     required this.title,
     required this.description,
@@ -17,6 +18,7 @@ class ServiceListingModel extends Equatable {
   final String serviceId;
   final String providerId;
   final String providerName;
+  final String providerPhone;
   final String category;
   final String title;
   final String description;
@@ -33,6 +35,8 @@ class ServiceListingModel extends Equatable {
       serviceId: documentId,
       providerId: map['providerId'] as String? ?? '',
       providerName: map['providerName'] as String? ?? 'Service Provider',
+      providerPhone:
+          map['providerPhone'] as String? ?? map['phone'] as String? ?? '',
       category: map['category'] as String? ?? 'General',
       title:
           map['title'] as String? ??
@@ -81,6 +85,7 @@ class ServiceListingModel extends Equatable {
     serviceId,
     providerId,
     providerName,
+    providerPhone,
     category,
     title,
     description,

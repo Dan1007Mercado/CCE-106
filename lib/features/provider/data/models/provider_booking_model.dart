@@ -6,9 +6,14 @@ class ProviderBookingModel extends Equatable {
     required this.customerId,
     required this.customerName,
     required this.customerPhone,
+    required this.providerId,
+    required this.providerName,
+    required this.providerPhone,
+    required this.paymentId,
     required this.serviceTitle,
     required this.category,
     required this.price,
+    required this.totalAmount,
     required this.selectedTimeSlot,
     required this.status,
     required this.paymentStatus,
@@ -16,15 +21,25 @@ class ProviderBookingModel extends Equatable {
     this.selectedDate,
     this.serviceAddress = '',
     this.notes = '',
+    this.completedAt,
+    this.cancelledAt,
+    this.providerCancellationFee = 0,
+    this.platformCancellationFee = 0,
+    this.refundAmount = 0,
   });
 
   final String bookingId;
   final String customerId;
   final String customerName;
   final String customerPhone;
+  final String providerId;
+  final String providerName;
+  final String providerPhone;
+  final String paymentId;
   final String serviceTitle;
   final String category;
   final double price;
+  final double totalAmount;
   final DateTime? selectedDate;
   final String selectedTimeSlot;
   final String serviceAddress;
@@ -32,10 +47,18 @@ class ProviderBookingModel extends Equatable {
   final String status;
   final String paymentStatus;
   final DateTime createdAt;
+  final DateTime? completedAt;
+  final DateTime? cancelledAt;
+  final double providerCancellationFee;
+  final double platformCancellationFee;
+  final double refundAmount;
 
   bool get isPending => status == 'pending';
   bool get isAccepted => status == 'accepted';
   bool get isCompleted => status == 'completed';
+  bool get isCancelled => status == 'cancelled_by_customer';
+  bool get canProviderMarkDone => status == 'accepted';
+  bool get canCustomerCancel => status == 'pending' || status == 'accepted';
 
   factory ProviderBookingModel.fromMap(
     Map<String, dynamic> map,
@@ -46,19 +69,47 @@ class ProviderBookingModel extends Equatable {
       customerId: map['customerId'] as String? ?? '',
       customerName: map['customerName'] as String? ?? 'Customer',
       customerPhone: map['customerPhone'] as String? ?? '',
+      providerId: map['providerId'] as String? ?? '',
+      providerName: map['providerName'] as String? ?? 'Service Provider',
+      providerPhone: map['providerPhone'] as String? ?? '',
+      paymentId: map['paymentId'] as String? ?? '',
       serviceTitle: map['serviceTitle'] as String? ?? 'Booked service',
       category: map['category'] as String? ?? 'General',
       price: _readDouble(map['price']),
+      totalAmount: _readDouble(map['totalAmount'] ?? map['price']),
       selectedDate: _readDateTime(map['selectedDate']),
       selectedTimeSlot: map['selectedTimeSlot'] as String? ?? '',
       serviceAddress: map['serviceAddress'] as String? ?? '',
       notes: map['notes'] as String? ?? '',
       status: map['status'] as String? ?? 'pending',
-      paymentStatus: map['paymentStatus'] as String? ?? 'unpaid',
+      paymentStatus: map['paymentStatus'] as String? ?? 'pending',
       createdAt:
           _readDateTime(map['createdAt']) ??
           DateTime.fromMillisecondsSinceEpoch(0),
+      completedAt: _readDateTime(map['completedAt']),
+      cancelledAt: _readDateTime(map['cancelledAt']),
+      providerCancellationFee: _readCancellationDouble(
+        map,
+        'providerCancellationFee',
+      ),
+      platformCancellationFee: _readCancellationDouble(
+        map,
+        'platformCancellationFee',
+      ),
+      refundAmount: _readCancellationDouble(map, 'refundAmount'),
     );
+  }
+
+  static double _readCancellationDouble(
+    Map<String, dynamic> map,
+    String field,
+  ) {
+    final cancellation = map['cancellation'];
+    if (cancellation is Map) {
+      return _readDouble(cancellation[field]);
+    }
+
+    return _readDouble(map[field]);
   }
 
   static double _readDouble(dynamic value) {
@@ -95,9 +146,14 @@ class ProviderBookingModel extends Equatable {
     customerId,
     customerName,
     customerPhone,
+    providerId,
+    providerName,
+    providerPhone,
+    paymentId,
     serviceTitle,
     category,
     price,
+    totalAmount,
     selectedDate,
     selectedTimeSlot,
     serviceAddress,
@@ -105,6 +161,11 @@ class ProviderBookingModel extends Equatable {
     status,
     paymentStatus,
     createdAt,
+    completedAt,
+    cancelledAt,
+    providerCancellationFee,
+    platformCancellationFee,
+    refundAmount,
   ];
 }
 

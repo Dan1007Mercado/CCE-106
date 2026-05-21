@@ -7,9 +7,12 @@ import '../../../../core/utils/helpers.dart';
 import '../../../../core/widgets/custom_button.dart';
 import '../../../../core/widgets/custom_textfield.dart';
 import '../../../../core/widgets/loading_indicator.dart';
+import '../../../../routes/app_router.dart';
 import '../../../auth/bloc/auth_bloc.dart';
 import '../../../auth/bloc/auth_event.dart';
 import '../../../auth/data/models/user_model.dart';
+import '../../../chat/data/services/chat_service.dart';
+import '../../../chat/ui/pages/chat_page.dart';
 import '../../../customer/data/models/job_post_model.dart';
 import '../../../customer/data/models/service_listing_model.dart';
 import '../../../customer/data/services/customer_service.dart';
@@ -27,6 +30,7 @@ class ProviderDashboardPage extends StatefulWidget {
 class _ProviderDashboardPageState extends State<ProviderDashboardPage> {
   final ProviderService _providerService = ProviderService();
   final CustomerService _customerService = CustomerService();
+  final ChatService _chatService = ChatService();
 
   @override
   Widget build(BuildContext context) {
@@ -114,6 +118,9 @@ class _ProviderDashboardPageState extends State<ProviderDashboardPage> {
                                 _changeBookingStatus(booking, 'accepted'),
                             onDeclineBooking: (booking) =>
                                 _changeBookingStatus(booking, 'declined'),
+                            onMarkBookingDone: (booking) =>
+                                _markBookingAsDone(user, booking),
+                            onOpenChat: _openBookingChat,
                           );
                         },
                       );
@@ -145,6 +152,97 @@ class _ProviderDashboardPageState extends State<ProviderDashboardPage> {
       Helpers.showSnackBar(
         context,
         status == 'accepted' ? 'Booking accepted.' : 'Booking declined.',
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      Helpers.showSnackBar(
+        context,
+        error.toString().replaceFirst('Exception: ', ''),
+        isError: true,
+      );
+    }
+  }
+
+  Future<void> _markBookingAsDone(
+    UserModel provider,
+    ProviderBookingModel booking,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Mark this service as done?'),
+          content: const Text(
+            'This will complete the booking and release the pending payment.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Mark done'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    try {
+      await _providerService.markBookingAsDone(
+        bookingId: booking.bookingId,
+        providerId: provider.uid,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      Helpers.showSnackBar(context, 'Booking completed. Payment released.');
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      Helpers.showSnackBar(
+        context,
+        error.toString().replaceFirst('Exception: ', ''),
+        isError: true,
+      );
+    }
+  }
+
+  Future<void> _openBookingChat(ProviderBookingModel booking) async {
+    try {
+      await _chatService.ensureBookingChat(
+        bookingId: booking.bookingId,
+        customerId: booking.customerId,
+        providerId: booking.providerId,
+        customerName: booking.customerName,
+        providerName: booking.providerName,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      Navigator.of(context).pushNamed(
+        AppRouter.chatRoute,
+        arguments: ChatPageArgs(
+          bookingId: booking.bookingId,
+          customerId: booking.customerId,
+          providerId: booking.providerId,
+          customerName: booking.customerName,
+          providerName: booking.providerName,
+        ),
       );
     } catch (error) {
       if (!mounted) {
@@ -478,6 +576,8 @@ class _ProviderDashboardContent extends StatelessWidget {
     required this.onAddSlot,
     required this.onAcceptBooking,
     required this.onDeclineBooking,
+    required this.onMarkBookingDone,
+    required this.onOpenChat,
   });
 
   final UserModel user;
@@ -490,6 +590,8 @@ class _ProviderDashboardContent extends StatelessWidget {
   final VoidCallback onAddSlot;
   final ValueChanged<ProviderBookingModel> onAcceptBooking;
   final ValueChanged<ProviderBookingModel> onDeclineBooking;
+  final ValueChanged<ProviderBookingModel> onMarkBookingDone;
+  final ValueChanged<ProviderBookingModel> onOpenChat;
 
   @override
   Widget build(BuildContext context) {
@@ -556,6 +658,7 @@ class _ProviderDashboardContent extends StatelessWidget {
                             pendingBookings: pending,
                             onAcceptBooking: onAcceptBooking,
                             onDeclineBooking: onDeclineBooking,
+                            onOpenChat: onOpenChat,
                           ),
                         ),
                         const SizedBox(width: AppSizes.sectionGap),
@@ -573,6 +676,7 @@ class _ProviderDashboardContent extends StatelessWidget {
                       pendingBookings: pending,
                       onAcceptBooking: onAcceptBooking,
                       onDeclineBooking: onDeclineBooking,
+                      onOpenChat: onOpenChat,
                     ),
                     const SizedBox(height: AppSizes.sectionGap),
                     _AvailabilitySection(slots: slots, onAddSlot: onAddSlot),
@@ -585,7 +689,12 @@ class _ProviderDashboardContent extends StatelessWidget {
                     onAddService: onAddService,
                   ),
                   const SizedBox(height: AppSizes.sectionGap),
-                  _JobsSection(title: 'Upcoming jobs', bookings: upcoming),
+                  _JobsSection(
+                    title: 'Upcoming jobs',
+                    bookings: upcoming,
+                    onMarkDone: onMarkBookingDone,
+                    onOpenChat: onOpenChat,
+                  ),
                   const SizedBox(height: AppSizes.sectionGap),
                   _RevenueSection(payments: payments),
                 ],
@@ -873,11 +982,13 @@ class _BookingRequestsSection extends StatelessWidget {
     required this.pendingBookings,
     required this.onAcceptBooking,
     required this.onDeclineBooking,
+    required this.onOpenChat,
   });
 
   final List<ProviderBookingModel> pendingBookings;
   final ValueChanged<ProviderBookingModel> onAcceptBooking;
   final ValueChanged<ProviderBookingModel> onDeclineBooking;
+  final ValueChanged<ProviderBookingModel> onOpenChat;
 
   @override
   Widget build(BuildContext context) {
@@ -897,6 +1008,7 @@ class _BookingRequestsSection extends StatelessWidget {
                     booking: booking,
                     onAccept: () => onAcceptBooking(booking),
                     onDecline: () => onDeclineBooking(booking),
+                    onOpenChat: () => onOpenChat(booking),
                   ),
                   if (booking != pendingBookings.take(5).last)
                     const Divider(height: 24),
@@ -912,11 +1024,13 @@ class _BookingRequestTile extends StatelessWidget {
     required this.booking,
     required this.onAccept,
     required this.onDecline,
+    required this.onOpenChat,
   });
 
   final ProviderBookingModel booking;
   final VoidCallback onAccept;
   final VoidCallback onDecline;
+  final VoidCallback onOpenChat;
 
   @override
   Widget build(BuildContext context) {
@@ -1002,6 +1116,11 @@ class _BookingRequestTile extends StatelessWidget {
               onPressed: onDecline,
               icon: const Icon(Icons.close_rounded),
               label: const Text('Decline'),
+            ),
+            TextButton.icon(
+              onPressed: onOpenChat,
+              icon: const Icon(Icons.chat_bubble_outline_rounded),
+              label: const Text('Chat'),
             ),
           ],
         ),
@@ -1143,10 +1262,17 @@ class _AvailabilitySection extends StatelessWidget {
 }
 
 class _JobsSection extends StatelessWidget {
-  const _JobsSection({required this.title, required this.bookings});
+  const _JobsSection({
+    required this.title,
+    required this.bookings,
+    required this.onMarkDone,
+    required this.onOpenChat,
+  });
 
   final String title;
   final List<ProviderBookingModel> bookings;
+  final ValueChanged<ProviderBookingModel> onMarkDone;
+  final ValueChanged<ProviderBookingModel> onOpenChat;
 
   @override
   Widget build(BuildContext context) {
@@ -1161,20 +1287,73 @@ class _JobsSection extends StatelessWidget {
           : Column(
               children: [
                 for (final booking in bookings.take(4)) ...[
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.work_history_outlined),
-                    title: Text(booking.serviceTitle),
-                    subtitle: Text(
-                      '${booking.customerName} | ${booking.selectedTimeSlot}',
-                    ),
-                    trailing: Text(_formatCurrency(booking.price)),
+                  _UpcomingBookingTile(
+                    booking: booking,
+                    onMarkDone: () => onMarkDone(booking),
+                    onOpenChat: () => onOpenChat(booking),
                   ),
                   if (booking != bookings.take(4).last)
                     const Divider(height: 10),
                 ],
               ],
             ),
+    );
+  }
+}
+
+class _UpcomingBookingTile extends StatelessWidget {
+  const _UpcomingBookingTile({
+    required this.booking,
+    required this.onMarkDone,
+    required this.onOpenChat,
+  });
+
+  final ProviderBookingModel booking;
+  final VoidCallback onMarkDone;
+  final VoidCallback onOpenChat;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(Icons.work_history_outlined),
+          title: Text(booking.serviceTitle),
+          subtitle: Text(
+            '${booking.customerName} | ${booking.selectedTimeSlot}',
+          ),
+          trailing: Text(_formatCurrency(booking.price)),
+        ),
+        if (booking.serviceAddress.trim().isNotEmpty)
+          Text(
+            booking.serviceAddress,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.72),
+            ),
+          ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            if (booking.canProviderMarkDone)
+              FilledButton.icon(
+                onPressed: onMarkDone,
+                icon: const Icon(Icons.check_circle_outline_rounded),
+                label: const Text('Mark as done'),
+              ),
+            OutlinedButton.icon(
+              onPressed: onOpenChat,
+              icon: const Icon(Icons.chat_bubble_outline_rounded),
+              label: const Text('Chat'),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

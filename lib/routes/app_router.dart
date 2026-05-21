@@ -5,6 +5,7 @@ import '../features/admin/ui/pages/admin_dashboard_page.dart';
 import '../features/auth/ui/pages/forgot_password_page.dart';
 import '../features/auth/ui/pages/login_page.dart';
 import '../features/auth/ui/pages/register_page.dart';
+import '../features/chat/ui/pages/chat_page.dart';
 import '../features/customer/data/models/service_listing_model.dart';
 import '../features/customer/ui/pages/booking_page.dart';
 import '../features/customer/ui/pages/customer_profile_page.dart';
@@ -23,6 +24,7 @@ class AppRouter {
   static const String serviceDetailRoute = '/customer/service-detail';
   static const String bookingRoute = '/customer/booking';
   static const String settingsRoute = '/customer/settings';
+  static const String chatRoute = '/chat';
   static const String providerDashboardRoute = '/provider/dashboard';
   static const String adminDashboardRoute = '/admin/dashboard';
 
@@ -72,6 +74,12 @@ class AppRouter {
       case settingsRoute:
         return _AppPageRoute(
           builder: (_) => const SettingsPage(),
+          settings: settings,
+        );
+      case chatRoute:
+        final args = settings.arguments;
+        return _AppPageRoute(
+          builder: (_) => ChatPage(args: args is ChatPageArgs ? args : null),
           settings: settings,
         );
       case providerDashboardRoute:

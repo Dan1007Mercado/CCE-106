@@ -6,7 +6,6 @@ import '../../../../core/utils/helpers.dart';
 import '../../../../core/widgets/custom_button.dart';
 import '../../../../core/widgets/custom_textfield.dart';
 import '../../../../core/widgets/loading_indicator.dart';
-import '../../../../routes/app_router.dart';
 import '../../../auth/bloc/auth_bloc.dart';
 import '../../../auth/data/models/user_model.dart';
 import '../../data/models/service_listing_model.dart';
@@ -30,6 +29,8 @@ class _BookingPageState extends State<BookingPage> {
   ];
 
   static const String _customTimeSlotOption = 'Custom time';
+  static const int _serviceStartMinute = 6 * 60;
+  static const int _serviceEndMinute = 18 * 60;
 
   static const List<String> _paymentMethods = [
     'Mock Wallet',
@@ -89,7 +90,6 @@ class _BookingPageState extends State<BookingPage> {
 
     final commission = service.price * BookingService.platformCommissionRate;
     final total = service.price + commission;
-    final canBook = user.isReadyForBooking;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Book service')),
@@ -102,10 +102,6 @@ class _BookingPageState extends State<BookingPage> {
             children: [
               _BookingHero(service: service),
               const SizedBox(height: AppSizes.sectionGap),
-              if (!canBook) ...[
-                _ProfileRequirementCard(user: user),
-                const SizedBox(height: AppSizes.sectionGap),
-              ],
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(AppSizes.cardPadding),
@@ -165,6 +161,15 @@ class _BookingPageState extends State<BookingPage> {
                       ),
                       if (_selectedTimeSlot == _customTimeSlotOption) ...[
                         const SizedBox(height: 12),
+                        Text(
+                          'Service visit hours: 6:00 AM - 6:00 PM',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.textTheme.bodySmall?.color?.withValues(
+                              alpha: 0.72,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
                         Wrap(
                           spacing: 10,
                           runSpacing: 10,
@@ -207,18 +212,20 @@ class _BookingPageState extends State<BookingPage> {
                       CustomTextField(
                         controller: _addressController,
                         label: 'Service address',
-                        hintText: 'House number, street, barangay, city',
+                        hintText:
+                            'House No. optional, street, barangay, city, region',
                         prefixIcon: Icons.location_on_outlined,
-                        maxLines: 2,
-                        validator: _requiredValidator,
+                        minLines: 1,
+                        maxLines: 3,
+                        validator: _addressValidator,
                       ),
                       const SizedBox(height: AppSizes.fieldGap),
                       CustomTextField(
                         controller: _notesController,
                         label: 'Notes',
-                        hintText:
-                            'Gate instructions, issue details, or tools needed',
+                        hintText: 'Optional instructions',
                         prefixIcon: Icons.notes_rounded,
+                        minLines: 1,
                         maxLines: 4,
                       ),
                     ],
@@ -281,13 +288,18 @@ class _BookingPageState extends State<BookingPage> {
                       ),
                       const SizedBox(height: 10),
                       Text(
-                        'Mock Wallet and Test Card create a paid test payment. Cash on service records a pending payment.',
+                        'Payment will stay pending until the provider marks the service as done. If you cancel before completion, a 3% provider fee and 1% platform fee may apply.',
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.textTheme.bodySmall?.color?.withValues(
                             alpha: 0.72,
                           ),
                           height: 1.4,
                         ),
+                      ),
+                      const SizedBox(height: 10),
+                      _AmountRow(
+                        label: 'Payment status',
+                        value: 'Pending until completed',
                       ),
                     ],
                   ),
@@ -298,22 +310,8 @@ class _BookingPageState extends State<BookingPage> {
                 label: 'Confirm & Pay',
                 icon: Icons.lock_rounded,
                 isLoading: _isSubmitting,
-                onPressed: canBook ? () => _confirm(user, service) : null,
+                onPressed: () => _confirm(user, service),
               ),
-              if (!canBook) ...[
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: _isSubmitting
-                      ? null
-                      : () {
-                          Navigator.of(
-                            context,
-                          ).pushNamed(AppRouter.editProfileRoute);
-                        },
-                  icon: const Icon(Icons.person_outline_rounded),
-                  label: const Text('Complete profile first'),
-                ),
-              ],
             ],
           ),
         ),
@@ -376,10 +374,11 @@ class _BookingPageState extends State<BookingPage> {
       return;
     }
 
-    if (_selectedTimeSlot == _customTimeSlotOption && !_isCustomEndAfterStart) {
+    if (_selectedTimeSlot == _customTimeSlotOption &&
+        !_isCustomTimeWithinServiceHours) {
       Helpers.showSnackBar(
         context,
-        'Choose a custom end time after the start time.',
+        'Service visits are only allowed from 6:00 AM to 6:00 PM. End time must be later than start time.',
         isError: true,
       );
       return;
@@ -428,9 +427,21 @@ class _BookingPageState extends State<BookingPage> {
     }
   }
 
-  String? _requiredValidator(String? value) {
-    if (value == null || value.trim().isEmpty) {
-      return 'This field is required.';
+  String? _addressValidator(String? value) {
+    final text = value?.trim() ?? '';
+
+    if (text.isEmpty) {
+      return 'Enter the service address.';
+    }
+
+    final parts = text
+        .split(',')
+        .map((part) => part.trim())
+        .where((part) => part.isNotEmpty)
+        .toList();
+
+    if (parts.length < 4) {
+      return 'Include street, barangay, city, and region.';
     }
 
     return null;
@@ -450,14 +461,19 @@ class _BookingPageState extends State<BookingPage> {
     return '${_formatTimeOfDay(startTime)} - ${_formatTimeOfDay(endTime)}';
   }
 
-  bool get _isCustomEndAfterStart {
+  bool get _isCustomTimeWithinServiceHours {
     final startTime = _customStartTime;
     final endTime = _customEndTime;
     if (startTime == null || endTime == null) {
       return false;
     }
 
-    return _timeOfDayToMinutes(endTime) > _timeOfDayToMinutes(startTime);
+    final startMinutes = _timeOfDayToMinutes(startTime);
+    final endMinutes = _timeOfDayToMinutes(endTime);
+
+    return startMinutes >= _serviceStartMinute &&
+        endMinutes <= _serviceEndMinute &&
+        endMinutes > startMinutes;
   }
 
   int _timeOfDayToMinutes(TimeOfDay value) => value.hour * 60 + value.minute;
@@ -515,73 +531,6 @@ class _BookingHero extends StatelessWidget {
               color: Colors.white.withValues(alpha: 0.88),
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ProfileRequirementCard extends StatelessWidget {
-  const _ProfileRequirementCard({required this.user});
-
-  final UserModel user;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSizes.cardPadding),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Booking requirements',
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 12),
-            _RequirementLine(
-              isComplete: user.hasContactNumber,
-              label: user.hasContactNumber
-                  ? 'Phone number saved'
-                  : 'Add a Philippine mobile number',
-            ),
-            _RequirementLine(
-              isComplete: user.hasBookingLocation,
-              label: user.hasBookingLocation
-                  ? 'GPS location captured'
-                  : 'Capture your GPS booking location',
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _RequirementLine extends StatelessWidget {
-  const _RequirementLine({required this.isComplete, required this.label});
-
-  final bool isComplete;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: Row(
-        children: [
-          Icon(
-            isComplete ? Icons.check_circle_rounded : Icons.error_rounded,
-            color: isComplete
-                ? Theme.of(context).colorScheme.primary
-                : Theme.of(context).colorScheme.error,
-          ),
-          const SizedBox(width: 10),
-          Expanded(child: Text(label)),
         ],
       ),
     );

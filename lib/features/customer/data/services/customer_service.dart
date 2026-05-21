@@ -209,16 +209,6 @@ class CustomerService {
     required UserModel customer,
     required ServiceListingModel service,
   }) async {
-    if (!customer.hasContactNumber) {
-      throw Exception('Add your Philippine mobile number before booking.');
-    }
-
-    if (!customer.hasBookingLocation) {
-      throw Exception(
-        'Capture your current GPS location before booking this service.',
-      );
-    }
-
     final bookingRef = _bookingsCollection.doc();
 
     await bookingRef.set({
@@ -231,14 +221,18 @@ class CustomerService {
       'customerLongitude': customer.longitude,
       'serviceId': service.serviceId,
       'providerId': service.providerId,
+      'providerName': service.providerName,
+      'providerPhone': service.providerPhone.trim(),
       'serviceTitle': service.title,
       'category': service.category,
       'price': service.price,
+      'totalAmount': service.price,
       'selectedDate': null,
       'selectedTimeSlot': '',
+      'serviceAddress': customer.locationLabel,
       'notes': '',
       'status': 'pending',
-      'paymentStatus': 'unpaid',
+      'paymentStatus': 'pending',
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });

@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/constants/app_sizes.dart';
 import '../../../../core/constants/app_strings.dart';
@@ -18,8 +19,12 @@ import '../../../../core/widgets/profile_avatar.dart';
 import '../../../../routes/app_router.dart';
 import '../../../auth/bloc/auth_bloc.dart';
 import '../../../auth/data/models/user_model.dart';
+import '../../../chat/data/services/chat_service.dart';
+import '../../../chat/ui/pages/chat_page.dart';
+import '../../../provider/data/models/provider_booking_model.dart';
 import '../../data/models/job_post_model.dart';
 import '../../data/models/service_listing_model.dart';
+import '../../data/services/booking_service.dart';
 import '../../data/services/customer_service.dart';
 
 class CustomerDashboardPage extends StatefulWidget {
@@ -58,6 +63,8 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
   static const List<double> _ratings = [3, 4, 4.5];
 
   final CustomerService _customerService = CustomerService();
+  final BookingService _bookingService = BookingService();
+  final ChatService _chatService = ChatService();
   final JobPhotoService _jobPhotoService = JobPhotoService();
   final TextEditingController _searchController = TextEditingController();
   late final TabController _tabController;
@@ -71,7 +78,7 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _welcomeTimer = Timer(const Duration(seconds: 2), _hideWelcomePanel);
     _searchController.addListener(() {
       setState(() {
@@ -173,6 +180,7 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
                 tabs: const [
                   Tab(text: 'Services'),
                   Tab(text: 'My Jobs'),
+                  Tab(text: 'Bookings'),
                 ],
               ),
             ),
@@ -234,6 +242,15 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
                     jobsStream: _customerService.streamCustomerJobs(user.uid),
                     onEditJob: (job) => _showEditJobSheet(user, job),
                     onDeleteJob: (job) => _confirmDeleteJob(user, job),
+                  ),
+                  _CustomerBookingsSection(
+                    bookingsStream: _bookingService.streamCustomerBookings(
+                      user.uid,
+                    ),
+                    onCancelBooking: (booking) =>
+                        _confirmCancelBooking(user, booking),
+                    onCallProvider: _callProvider,
+                    onOpenChat: _openBookingChat,
                   ),
                 ],
               ),
@@ -767,6 +784,131 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
     }
   }
 
+  Future<void> _confirmCancelBooking(
+    UserModel user,
+    ProviderBookingModel booking,
+  ) async {
+    if (!booking.canCustomerCancel) {
+      Helpers.showSnackBar(
+        context,
+        'This booking can no longer be cancelled.',
+        isError: true,
+      );
+      return;
+    }
+
+    final shouldCancel = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Cancel booking?'),
+          content: const Text(
+            'Cancelling will charge 3% for the service provider and 1% platform fee.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Keep booking'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Cancel booking'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldCancel != true) {
+      return;
+    }
+
+    try {
+      await _bookingService.cancelBookingByCustomer(
+        bookingId: booking.bookingId,
+        customerId: user.uid,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      Helpers.showSnackBar(
+        context,
+        'Booking cancelled. Cancellation fee applied.',
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      Helpers.showSnackBar(
+        context,
+        error.toString().replaceFirst('Exception: ', ''),
+        isError: true,
+      );
+    }
+  }
+
+  Future<void> _callProvider(ProviderBookingModel booking) async {
+    final phone = booking.providerPhone.trim();
+    if (phone.isEmpty) {
+      Helpers.showSnackBar(
+        context,
+        'Provider phone number is not available.',
+        isError: true,
+      );
+      return;
+    }
+
+    final uri = Uri(scheme: 'tel', path: phone);
+    final opened = await launchUrl(uri);
+    if (!opened && mounted) {
+      Helpers.showSnackBar(
+        context,
+        'Could not open the phone app.',
+        isError: true,
+      );
+    }
+  }
+
+  Future<void> _openBookingChat(ProviderBookingModel booking) async {
+    try {
+      await _chatService.ensureBookingChat(
+        bookingId: booking.bookingId,
+        customerId: booking.customerId,
+        providerId: booking.providerId,
+        customerName: booking.customerName,
+        providerName: booking.providerName,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      Navigator.of(context).pushNamed(
+        AppRouter.chatRoute,
+        arguments: ChatPageArgs(
+          bookingId: booking.bookingId,
+          customerId: booking.customerId,
+          providerId: booking.providerId,
+          customerName: booking.customerName,
+          providerName: booking.providerName,
+        ),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      Helpers.showSnackBar(
+        context,
+        error.toString().replaceFirst('Exception: ', ''),
+        isError: true,
+      );
+    }
+  }
+
   String? _requiredValidator(String? value) {
     if (value == null || value.trim().isEmpty) {
       return 'This field is required.';
@@ -1064,6 +1206,202 @@ class _CustomerJobsSection extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+class _CustomerBookingsSection extends StatelessWidget {
+  const _CustomerBookingsSection({
+    required this.bookingsStream,
+    required this.onCancelBooking,
+    required this.onCallProvider,
+    required this.onOpenChat,
+  });
+
+  final Stream<List<ProviderBookingModel>> bookingsStream;
+  final ValueChanged<ProviderBookingModel> onCancelBooking;
+  final ValueChanged<ProviderBookingModel> onCallProvider;
+  final ValueChanged<ProviderBookingModel> onOpenChat;
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<ProviderBookingModel>>(
+      stream: bookingsStream,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final bookings = snapshot.data ?? const <ProviderBookingModel>[];
+
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(
+            AppSizes.pagePadding,
+            0,
+            AppSizes.pagePadding,
+            100,
+          ),
+          children: [
+            const _SectionHeader(
+              title: 'My bookings',
+              description:
+                  'Track service requests, contact providers, and cancel active bookings.',
+            ),
+            const SizedBox(height: 18),
+            if (bookings.isEmpty)
+              const _EmptyFeedCard(
+                title: 'No bookings yet.',
+                description:
+                    'Booked services will appear here with contact and payment status.',
+              )
+            else
+              for (final booking in bookings) ...[
+                _CustomerBookingCard(
+                  booking: booking,
+                  onCancel: () => onCancelBooking(booking),
+                  onCallProvider: () => onCallProvider(booking),
+                  onOpenChat: () => onOpenChat(booking),
+                ),
+                const SizedBox(height: 16),
+              ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _CustomerBookingCard extends StatelessWidget {
+  const _CustomerBookingCard({
+    required this.booking,
+    required this.onCancel,
+    required this.onCallProvider,
+    required this.onOpenChat,
+  });
+
+  final ProviderBookingModel booking;
+  final VoidCallback onCancel;
+  final VoidCallback onCallProvider;
+  final VoidCallback onOpenChat;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSizes.cardPadding),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CircleAvatar(
+                  backgroundColor: theme.tokens.primarySoft,
+                  child: Icon(
+                    Icons.calendar_month_rounded,
+                    color: AppTheme.resolveOnColor(theme.tokens.primarySoft),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        booking.serviceTitle,
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        booking.providerName,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.textTheme.bodyMedium?.color?.withValues(
+                            alpha: 0.74,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                _InfoPill(label: booking.status),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                if (booking.selectedDate != null)
+                  _InfoPill(label: _formatDate(booking.selectedDate!)),
+                if (booking.selectedTimeSlot.trim().isNotEmpty)
+                  _InfoPill(label: booking.selectedTimeSlot),
+                _InfoPill(label: 'Payment: ${booking.paymentStatus}'),
+                _InfoPill(label: _formatCurrency(booking.totalAmount)),
+              ],
+            ),
+            if (booking.serviceAddress.trim().isNotEmpty) ...[
+              const SizedBox(height: 14),
+              Text(
+                booking.serviceAddress,
+                style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
+              ),
+            ],
+            if (booking.notes.trim().isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                booking.notes,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.textTheme.bodyMedium?.color?.withValues(
+                    alpha: 0.74,
+                  ),
+                  height: 1.45,
+                ),
+              ),
+            ],
+            if (booking.isCancelled &&
+                (booking.providerCancellationFee > 0 ||
+                    booking.platformCancellationFee > 0)) ...[
+              const SizedBox(height: 12),
+              Text(
+                'Cancellation fees: provider ${_formatCurrency(booking.providerCancellationFee)}, platform ${_formatCurrency(booking.platformCancellationFee)}.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.textTheme.bodySmall?.color?.withValues(
+                    alpha: 0.72,
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: onCallProvider,
+                  icon: const Icon(Icons.call_outlined),
+                  label: const Text('Call provider'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: onOpenChat,
+                  icon: const Icon(Icons.chat_bubble_outline_rounded),
+                  label: const Text('Chat'),
+                ),
+                if (booking.canCustomerCancel)
+                  FilledButton.icon(
+                    onPressed: onCancel,
+                    icon: const Icon(Icons.cancel_outlined),
+                    label: const Text('Cancel booking'),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -1528,4 +1866,25 @@ class _InfoPill extends StatelessWidget {
       ),
     );
   }
+}
+
+String _formatCurrency(double value) => 'PHP ${value.toStringAsFixed(2)}';
+
+String _formatDate(DateTime value) {
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+
+  return '${months[value.month - 1]} ${value.day}, ${value.year}';
 }
