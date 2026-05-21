@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ProviderBookingModel extends Equatable {
   const ProviderBookingModel({
@@ -19,6 +20,11 @@ class ProviderBookingModel extends Equatable {
     required this.paymentStatus,
     required this.createdAt,
     this.selectedDate,
+    this.startAt,
+    this.endAt,
+    this.durationMinutes = 0,
+    this.jobId = '',
+    this.difficulty = 'Moderate',
     this.serviceAddress = '',
     this.notes = '',
     this.completedAt,
@@ -41,6 +47,11 @@ class ProviderBookingModel extends Equatable {
   final double price;
   final double totalAmount;
   final DateTime? selectedDate;
+  final DateTime? startAt;
+  final DateTime? endAt;
+  final int durationMinutes;
+  final String jobId;
+  final String difficulty;
   final String selectedTimeSlot;
   final String serviceAddress;
   final String notes;
@@ -78,6 +89,11 @@ class ProviderBookingModel extends Equatable {
       price: _readDouble(map['price']),
       totalAmount: _readDouble(map['totalAmount'] ?? map['price']),
       selectedDate: _readDateTime(map['selectedDate']),
+      startAt: _readDateTime(map['startAt']),
+      endAt: _readDateTime(map['endAt']),
+      durationMinutes: _readInt(map['durationMinutes']),
+      jobId: map['jobId'] as String? ?? '',
+      difficulty: _readDifficulty(map['difficulty']),
       selectedTimeSlot: map['selectedTimeSlot'] as String? ?? '',
       serviceAddress: map['serviceAddress'] as String? ?? '',
       notes: map['notes'] as String? ?? '',
@@ -120,6 +136,23 @@ class ProviderBookingModel extends Equatable {
     return double.tryParse(value?.toString() ?? '') ?? 0;
   }
 
+  static int _readInt(dynamic value) {
+    if (value is int) {
+      return value;
+    }
+
+    if (value is num) {
+      return value.toInt();
+    }
+
+    return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  static String _readDifficulty(dynamic value) {
+    final cleaned = value?.toString().trim() ?? '';
+    return cleaned.isEmpty ? 'Moderate' : cleaned;
+  }
+
   static DateTime? _readDateTime(dynamic value) {
     if (value == null) {
       return null;
@@ -129,15 +162,15 @@ class ProviderBookingModel extends Equatable {
       return value;
     }
 
-    final toDate = (value as dynamic).toDate;
-    if (toDate is Function) {
-      final result = toDate();
-      if (result is DateTime) {
-        return result;
-      }
+    if (value is Timestamp) {
+      return value.toDate();
     }
 
-    return null;
+    if (value is int) {
+      return DateTime.fromMillisecondsSinceEpoch(value);
+    }
+
+    return DateTime.tryParse(value.toString());
   }
 
   @override
@@ -155,6 +188,11 @@ class ProviderBookingModel extends Equatable {
     price,
     totalAmount,
     selectedDate,
+    startAt,
+    endAt,
+    durationMinutes,
+    jobId,
+    difficulty,
     selectedTimeSlot,
     serviceAddress,
     notes,

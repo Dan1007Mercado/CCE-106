@@ -64,10 +64,17 @@ class AppRouter {
           settings: settings,
         );
       case bookingRoute:
-        final service = settings.arguments;
+        final args = settings.arguments;
+        final service = args is BookingPageArgs
+            ? args.service
+            : args is ServiceListingModel
+            ? args
+            : null;
         return _AppPageRoute(
           builder: (_) => BookingPage(
-            service: service is ServiceListingModel ? service : null,
+            service: service,
+            jobId: args is BookingPageArgs ? args.jobId : null,
+            difficulty: args is BookingPageArgs ? args.difficulty : null,
           ),
           settings: settings,
         );

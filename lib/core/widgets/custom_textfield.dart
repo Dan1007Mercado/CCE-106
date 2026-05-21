@@ -19,6 +19,7 @@ class CustomTextField extends StatelessWidget {
     this.maxLines = 1,
     this.minLines,
     this.expands = false,
+    this.alignPrefixIconToTop = false,
   });
 
   final TextEditingController controller;
@@ -37,6 +38,7 @@ class CustomTextField extends StatelessWidget {
   final int? maxLines;
   final int? minLines;
   final bool expands;
+  final bool alignPrefixIconToTop;
 
   @override
   Widget build(BuildContext context) {
@@ -54,6 +56,7 @@ class CustomTextField extends StatelessWidget {
     final effectiveTextInputAction = isMultiline
         ? TextInputAction.newline
         : textInputAction;
+    final shouldTopAlignPrefix = isMultiline && alignPrefixIconToTop;
 
     return TextFormField(
       controller: controller,
@@ -71,7 +74,22 @@ class CustomTextField extends StatelessWidget {
       decoration: InputDecoration(
         labelText: label,
         hintText: hintText,
-        prefixIcon: prefixIcon == null ? null : Icon(prefixIcon),
+        prefixIcon: prefixIcon == null
+            ? null
+            : shouldTopAlignPrefix
+            ? Padding(
+                padding: const EdgeInsets.only(top: 14),
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  widthFactor: 1,
+                  heightFactor: 1,
+                  child: Icon(prefixIcon),
+                ),
+              )
+            : Icon(prefixIcon),
+        prefixIconConstraints: shouldTopAlignPrefix
+            ? const BoxConstraints(minWidth: 48, minHeight: 48)
+            : null,
         suffixIcon: suffixIcon,
       ),
     );

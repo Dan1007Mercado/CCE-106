@@ -40,7 +40,7 @@ class _HandyMarketAppView extends StatefulWidget {
 
 class _HandyMarketAppViewState extends State<_HandyMarketAppView>
     with WidgetsBindingObserver {
-  static const Duration _sessionTimeout = Duration(minutes: 1);
+  static const Duration _sessionTimeout = Duration(minutes: 3);
   static const String _lastInactiveAtKey = 'session_last_inactive_at';
   static const String _logoutOnNextLaunchKey = 'session_logout_on_next_launch';
 
@@ -201,7 +201,7 @@ class _HandyMarketAppViewState extends State<_HandyMarketAppView>
 
     if (expiredInBackground) {
       _expireSession(
-        'Session expired after 1 minute away from the app. Please sign in again.',
+        'Session expired after 3 minutes away from the app. Please sign in again.',
       );
       return;
     }
@@ -222,7 +222,7 @@ class _HandyMarketAppViewState extends State<_HandyMarketAppView>
     _inactivityTimer?.cancel();
     _inactivityTimer = Timer(_sessionTimeout, () {
       _expireSession(
-        'Session expired after 1 minute of inactivity. Please sign in again.',
+        'Session expired after 3 minutes of inactivity. Please sign in again.',
       );
     });
   }

@@ -120,11 +120,11 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
       ),
       appBar: AppBar(
         titleSpacing: AppSizes.pagePadding,
+        toolbarHeight: 72,
         title: Row(
           children: [
             const BrandLogo(size: 36, borderRadius: 10),
-
-            const SizedBox(width: 12), // reduce slightly
+            const SizedBox(width: 12),
             const Flexible(
               child: Text(
                 AppStrings.appName,
@@ -147,18 +147,30 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
                 Navigator.of(context).pushNamed(AppRouter.customerProfileRoute);
               },
               borderRadius: BorderRadius.circular(24),
-              child: ProfileAvatar(
-                radius: 18,
-                name: user.displayName,
-                imageProvider: user.profilePic.trim().isEmpty
-                    ? null
-                    : NetworkImage(user.profilePic),
+              child: Container(
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: tokens.subtleSurface,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: theme.colorScheme.outlineVariant.withValues(
+                      alpha: 0.55,
+                    ),
+                  ),
+                ),
+                child: ProfileAvatar(
+                  radius: 18,
+                  name: user.displayName,
+                  imageProvider: user.profilePic.trim().isEmpty
+                      ? null
+                      : NetworkImage(user.profilePic),
+                ),
               ),
             ),
           ),
         ],
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(66),
+          preferredSize: const Size.fromHeight(68),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(
               AppSizes.pagePadding,
@@ -167,20 +179,39 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
               12,
             ),
             child: Container(
+              padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
                 color: tokens.primarySoft,
                 borderRadius: BorderRadius.circular(999),
+                border: Border.all(
+                  color: theme.colorScheme.primary.withValues(alpha: 0.10),
+                ),
               ),
               child: TabBar(
                 controller: _tabController,
+                dividerColor: Colors.transparent,
+                indicatorSize: TabBarIndicatorSize.tab,
                 indicator: BoxDecoration(
                   color: theme.colorScheme.primary,
                   borderRadius: BorderRadius.circular(999),
                 ),
+                labelColor: theme.colorScheme.onPrimary,
+                unselectedLabelColor: AppTheme.resolveOnColor(
+                  tokens.primarySoft,
+                ).withValues(alpha: 0.72),
+                labelStyle: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 13,
+                ),
+                unselectedLabelStyle: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
+                splashBorderRadius: BorderRadius.circular(999),
                 tabs: const [
-                  Tab(text: 'Services'),
-                  Tab(text: 'My Jobs'),
-                  Tab(text: 'Bookings'),
+                  Tab(height: 42, text: 'Services'),
+                  Tab(height: 42, text: 'My Jobs'),
+                  Tab(height: 42, text: 'Bookings'),
                 ],
               ),
             ),
@@ -444,6 +475,8 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
       await showModalBottomSheet<void>(
         context: context,
         isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        showDragHandle: false,
         builder: (sheetContext) {
           return StatefulBuilder(
             builder: (sheetContext, setSheetState) {
@@ -491,11 +524,21 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
                   return;
                 }
 
-                final budget = double.parse(budgetController.text.trim());
+                final budget = double.tryParse(budgetController.text.trim());
+                if (budget == null || budget <= 0) {
+                  Helpers.showSnackBar(
+                    sheetContext,
+                    'Enter a valid budget.',
+                    isError: true,
+                  );
+                  return;
+                }
+
                 setSheetState(() {
                   isSaving = true;
                 });
 
+                var shouldResetSaving = true;
                 try {
                   var updatedPhotoUrl = photoUrl;
                   if (selectedPhoto != null) {
@@ -522,6 +565,7 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
                     return;
                   }
 
+                  shouldResetSaving = false;
                   Navigator.of(sheetContext).pop();
                   Helpers.showSnackBar(context, 'Job post updated.');
                 } catch (error) {
@@ -535,7 +579,7 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
                     isError: true,
                   );
                 } finally {
-                  if (sheetContext.mounted) {
+                  if (shouldResetSaving && sheetContext.mounted) {
                     setSheetState(() {
                       isSaving = false;
                     });
@@ -543,170 +587,270 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
                 }
               }
 
+              final theme = Theme.of(sheetContext);
+              final tokens = theme.tokens;
+
               return SafeArea(
-                child: Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    AppSizes.pagePadding,
-                    AppSizes.pagePadding,
-                    AppSizes.pagePadding,
-                    MediaQuery.of(sheetContext).viewInsets.bottom +
-                        AppSizes.pagePadding,
-                  ),
-                  child: Form(
-                    key: formKey,
-                    child: SingleChildScrollView(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Text(
-                            'Edit job post',
-                            style: Theme.of(sheetContext).textTheme.titleLarge
-                                ?.copyWith(fontWeight: FontWeight.w800),
-                          ),
-                          const SizedBox(height: AppSizes.fieldGap),
-                          CustomTextField(
-                            controller: titleController,
-                            label: 'Job title',
-                            prefixIcon: Icons.assignment_outlined,
-                            validator: _requiredValidator,
-                          ),
-                          const SizedBox(height: AppSizes.fieldGap),
-                          CustomTextField(
-                            controller: descriptionController,
-                            label: 'Description',
-                            prefixIcon: Icons.notes_rounded,
-                            maxLines: 4,
-                            validator: _requiredValidator,
-                          ),
-                          const SizedBox(height: AppSizes.fieldGap),
-                          DropdownButtonFormField<String>(
-                            initialValue: selectedCategory,
-                            decoration: const InputDecoration(
-                              labelText: 'Category',
-                              prefixIcon: Icon(Icons.category_outlined),
-                            ),
-                            items: _jobCategories
-                                .map(
-                                  (category) => DropdownMenuItem(
-                                    value: category,
-                                    child: Text(category),
+                child: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Container(
+                    constraints: const BoxConstraints(maxWidth: 640),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surface,
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(30),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.18),
+                          blurRadius: 32,
+                          offset: const Offset(0, -10),
+                        ),
+                      ],
+                    ),
+                    child: Form(
+                      key: formKey,
+                      child: SingleChildScrollView(
+                        padding: EdgeInsets.fromLTRB(
+                          AppSizes.pagePadding,
+                          14,
+                          AppSizes.pagePadding,
+                          MediaQuery.of(sheetContext).viewInsets.bottom +
+                              AppSizes.pagePadding,
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Row(
+                              children: [
+                                IconButton(
+                                  tooltip: 'Back',
+                                  onPressed: isSaving
+                                      ? null
+                                      : () => Navigator.of(sheetContext).pop(),
+                                  icon: const Icon(Icons.arrow_back_rounded),
+                                  style: IconButton.styleFrom(
+                                    backgroundColor: tokens.primarySoft,
+                                    foregroundColor: theme.colorScheme.primary,
                                   ),
-                                )
-                                .toList(),
-                            onChanged: isSaving
-                                ? null
-                                : (value) {
-                                    if (value == null) {
-                                      return;
-                                    }
-                                    setSheetState(() {
-                                      selectedCategory = value;
-                                    });
-                                  },
-                          ),
-                          const SizedBox(height: AppSizes.fieldGap),
-                          CustomTextField(
-                            controller: locationController,
-                            label: 'Location',
-                            prefixIcon: Icons.location_on_outlined,
-                            maxLines: 2,
-                            validator: _requiredValidator,
-                          ),
-                          const SizedBox(height: AppSizes.fieldGap),
-                          CustomTextField(
-                            controller: budgetController,
-                            label: 'Budget / Offered price',
-                            hintText: '500',
-                            keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
-                            ),
-                            prefixIcon: Icons.payments_outlined,
-                            validator: _budgetValidator,
-                          ),
-                          const SizedBox(height: AppSizes.fieldGap),
-                          DropdownButtonFormField<String>(
-                            initialValue: selectedDifficulty,
-                            decoration: const InputDecoration(
-                              labelText: 'Difficulty',
-                              prefixIcon: Icon(Icons.speed_rounded),
-                            ),
-                            items: _difficulties
-                                .map(
-                                  (difficulty) => DropdownMenuItem(
-                                    value: difficulty,
-                                    child: Text(difficulty),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Edit posted job',
+                                        style: theme.textTheme.titleLarge
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w800,
+                                              height: 1.1,
+                                            ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Update the request details providers will see.',
+                                        style: theme.textTheme.bodyMedium
+                                            ?.copyWith(
+                                              color: theme
+                                                  .textTheme
+                                                  .bodyMedium
+                                                  ?.color
+                                                  ?.withValues(alpha: 0.68),
+                                            ),
+                                      ),
+                                    ],
                                   ),
-                                )
-                                .toList(),
-                            onChanged: isSaving
-                                ? null
-                                : (value) {
-                                    if (value == null) {
-                                      return;
-                                    }
-                                    setSheetState(() {
-                                      selectedDifficulty = value;
-                                    });
-                                  },
-                          ),
-                          const SizedBox(height: AppSizes.fieldGap),
-                          DropdownButtonFormField<double?>(
-                            initialValue: selectedRating,
-                            decoration: const InputDecoration(
-                              labelText: 'Preferred rating filter',
-                              prefixIcon: Icon(Icons.star_outline_rounded),
+                                ),
+                              ],
                             ),
-                            items: const [
-                              DropdownMenuItem<double?>(
-                                value: null,
-                                child: Text('No preference'),
+                            const SizedBox(height: 18),
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: tokens.subtleSurface,
+                                borderRadius: BorderRadius.circular(22),
+                                border: Border.all(
+                                  color: theme.colorScheme.outlineVariant
+                                      .withValues(alpha: 0.55),
+                                ),
                               ),
-                              DropdownMenuItem<double?>(
-                                value: 3,
-                                child: Text('3 stars and above'),
+                              child: Column(
+                                children: [
+                                  CustomTextField(
+                                    controller: titleController,
+                                    label: 'Job title',
+                                    prefixIcon: Icons.assignment_outlined,
+                                    validator: _requiredValidator,
+                                    enabled: !isSaving,
+                                  ),
+                                  const SizedBox(height: AppSizes.fieldGap),
+                                  CustomTextField(
+                                    controller: descriptionController,
+                                    label: 'Description',
+                                    prefixIcon: Icons.notes_rounded,
+                                    minLines: 1,
+                                    maxLines: 3,
+                                    alignPrefixIconToTop: true,
+                                    validator: _requiredValidator,
+                                    enabled: !isSaving,
+                                  ),
+                                  const SizedBox(height: AppSizes.fieldGap),
+                                  DropdownButtonFormField<String>(
+                                    initialValue: selectedCategory,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Category',
+                                      prefixIcon: Icon(Icons.category_outlined),
+                                    ),
+                                    items: _jobCategories
+                                        .map(
+                                          (category) => DropdownMenuItem(
+                                            value: category,
+                                            child: Text(category),
+                                          ),
+                                        )
+                                        .toList(),
+                                    onChanged: isSaving
+                                        ? null
+                                        : (value) {
+                                            if (value == null) {
+                                              return;
+                                            }
+                                            setSheetState(() {
+                                              selectedCategory = value;
+                                            });
+                                          },
+                                  ),
+                                  const SizedBox(height: AppSizes.fieldGap),
+                                  CustomTextField(
+                                    controller: locationController,
+                                    label: 'Location',
+                                    prefixIcon: Icons.location_on_outlined,
+                                    minLines: 1,
+                                    maxLines: 2,
+                                    alignPrefixIconToTop: true,
+                                    validator: _requiredValidator,
+                                    enabled: !isSaving,
+                                  ),
+                                ],
                               ),
-                              DropdownMenuItem<double?>(
-                                value: 4,
-                                child: Text('4 stars and above'),
+                            ),
+                            const SizedBox(height: 14),
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.surface,
+                                borderRadius: BorderRadius.circular(22),
+                                border: Border.all(
+                                  color: theme.colorScheme.outlineVariant
+                                      .withValues(alpha: 0.60),
+                                ),
                               ),
-                              DropdownMenuItem<double?>(
-                                value: 4.5,
-                                child: Text('4.5 stars and above'),
+                              child: Column(
+                                children: [
+                                  CustomTextField(
+                                    controller: budgetController,
+                                    label: 'Budget / Offered price',
+                                    hintText: '500',
+                                    keyboardType:
+                                        const TextInputType.numberWithOptions(
+                                          decimal: true,
+                                        ),
+                                    prefixIcon: Icons.payments_outlined,
+                                    validator: _budgetValidator,
+                                    enabled: !isSaving,
+                                  ),
+                                  const SizedBox(height: AppSizes.fieldGap),
+                                  DropdownButtonFormField<String>(
+                                    initialValue: selectedDifficulty,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Difficulty',
+                                      prefixIcon: Icon(Icons.speed_rounded),
+                                    ),
+                                    items: _difficulties
+                                        .map(
+                                          (difficulty) => DropdownMenuItem(
+                                            value: difficulty,
+                                            child: Text(difficulty),
+                                          ),
+                                        )
+                                        .toList(),
+                                    onChanged: isSaving
+                                        ? null
+                                        : (value) {
+                                            if (value == null) {
+                                              return;
+                                            }
+                                            setSheetState(() {
+                                              selectedDifficulty = value;
+                                            });
+                                          },
+                                  ),
+                                  const SizedBox(height: AppSizes.fieldGap),
+                                  DropdownButtonFormField<double?>(
+                                    initialValue: selectedRating,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Preferred rating filter',
+                                      prefixIcon: Icon(
+                                        Icons.star_outline_rounded,
+                                      ),
+                                    ),
+                                    items: const [
+                                      DropdownMenuItem<double?>(
+                                        value: null,
+                                        child: Text('No preference'),
+                                      ),
+                                      DropdownMenuItem<double?>(
+                                        value: 3,
+                                        child: Text('3 stars and above'),
+                                      ),
+                                      DropdownMenuItem<double?>(
+                                        value: 4,
+                                        child: Text('4 stars and above'),
+                                      ),
+                                      DropdownMenuItem<double?>(
+                                        value: 4.5,
+                                        child: Text('4.5 stars and above'),
+                                      ),
+                                    ],
+                                    onChanged: isSaving
+                                        ? null
+                                        : (value) {
+                                            setSheetState(() {
+                                              selectedRating = value;
+                                            });
+                                          },
+                                  ),
+                                ],
                               ),
-                            ],
-                            onChanged: isSaving
-                                ? null
-                                : (value) {
-                                    setSheetState(() {
-                                      selectedRating = value;
-                                    });
-                                  },
-                          ),
-                          const SizedBox(height: AppSizes.fieldGap),
-                          _EditableJobPhoto(
-                            photoUrl: photoUrl,
-                            selectedPhotoBytes: selectedPhotoBytes,
-                            isPicking: isPickingPhoto,
-                            onPick: isSaving ? null : pickPhoto,
-                            onRemove: isSaving
-                                ? null
-                                : () {
-                                    setSheetState(() {
-                                      photoUrl = '';
-                                      selectedPhoto = null;
-                                      selectedPhotoBytes = null;
-                                    });
-                                  },
-                          ),
-                          const SizedBox(height: AppSizes.sectionGap),
-                          CustomButton(
-                            label: 'Save changes',
-                            icon: Icons.save_rounded,
-                            isLoading: isSaving,
-                            onPressed: save,
-                          ),
-                        ],
+                            ),
+                            const SizedBox(height: 14),
+                            _EditableJobPhoto(
+                              photoUrl: photoUrl,
+                              selectedPhotoBytes: selectedPhotoBytes,
+                              isPicking: isPickingPhoto,
+                              onPick: isSaving ? null : pickPhoto,
+                              onRemove: isSaving
+                                  ? null
+                                  : () {
+                                      setSheetState(() {
+                                        photoUrl = '';
+                                        selectedPhoto = null;
+                                        selectedPhotoBytes = null;
+                                      });
+                                    },
+                            ),
+                            const SizedBox(height: AppSizes.sectionGap),
+                            CustomButton(
+                              label: 'Save changes',
+                              icon: Icons.save_rounded,
+                              isLoading: isSaving,
+                              onPressed: save,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -957,7 +1101,26 @@ class _ActionIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return IconButton(onPressed: onTap, tooltip: tooltip, icon: Icon(icon));
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: theme.tokens.subtleSurface,
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.55),
+          ),
+        ),
+        child: IconButton(
+          onPressed: onTap,
+          tooltip: tooltip,
+          icon: Icon(icon),
+          color: theme.colorScheme.primary,
+        ),
+      ),
+    );
   }
 }
 
@@ -1095,7 +1258,7 @@ class _ServicesFeedSection extends StatelessWidget {
             AppSizes.pagePadding,
             0,
             AppSizes.pagePadding,
-            100,
+            150,
           ),
           children: [
             _SectionHeader(
@@ -1114,6 +1277,27 @@ class _ServicesFeedSection extends StatelessWidget {
               decoration: InputDecoration(
                 hintText: 'Search services, providers, category, or location',
                 prefixIcon: const Icon(Icons.search_rounded),
+                filled: true,
+                fillColor: Theme.of(context).colorScheme.surface,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(20),
+                  borderSide: BorderSide(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.outlineVariant.withValues(alpha: 0.68),
+                  ),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(20),
+                  borderSide: BorderSide(
+                    color: Theme.of(context).colorScheme.primary,
+                    width: 1.4,
+                  ),
+                ),
                 suffixIcon: searchController.text.isEmpty
                     ? null
                     : IconButton(
@@ -1122,11 +1306,6 @@ class _ServicesFeedSection extends StatelessWidget {
                         icon: const Icon(Icons.close_rounded),
                       ),
               ),
-            ),
-            const SizedBox(height: 12),
-            _ActiveFiltersSummary(
-              selectedCategory: selectedCategory,
-              selectedRating: selectedRating,
             ),
             const SizedBox(height: 18),
             if (filteredServices.isEmpty)
@@ -1234,13 +1413,21 @@ class _CustomerBookingsSection extends StatelessWidget {
         }
 
         final bookings = snapshot.data ?? const <ProviderBookingModel>[];
+        final pendingBookings = bookings.where(_isPendingBooking).toList();
+        final completedBookings = bookings.where(_isCompletedBooking).toList();
+        final cancelledBookings = bookings.where(_isCancelledBooking).toList();
+        final otherBookings = bookings.where((booking) {
+          return !_isPendingBooking(booking) &&
+              !_isCompletedBooking(booking) &&
+              !_isCancelledBooking(booking);
+        }).toList();
 
         return ListView(
           padding: const EdgeInsets.fromLTRB(
             AppSizes.pagePadding,
             0,
             AppSizes.pagePadding,
-            100,
+            150,
           ),
           children: [
             const _SectionHeader(
@@ -1255,19 +1442,274 @@ class _CustomerBookingsSection extends StatelessWidget {
                 description:
                     'Booked services will appear here with contact and payment status.',
               )
-            else
-              for (final booking in bookings) ...[
-                _CustomerBookingCard(
-                  booking: booking,
-                  onCancel: () => onCancelBooking(booking),
-                  onCallProvider: () => onCallProvider(booking),
-                  onOpenChat: () => onOpenChat(booking),
+            else ...[
+              _BookingGroupSection(
+                title: 'Pending',
+                description:
+                    'Requests waiting for provider action or in progress.',
+                icon: Icons.pending_actions_rounded,
+                bookings: pendingBookings,
+                emptyTitle: 'No pending bookings.',
+                emptyDescription:
+                    'New requests and accepted bookings will appear here.',
+                onCancelBooking: onCancelBooking,
+                onCallProvider: onCallProvider,
+                onOpenChat: onOpenChat,
+              ),
+              const SizedBox(height: 22),
+              _BookingGroupSection(
+                title: 'Completed',
+                description: 'Finished services and released payments.',
+                icon: Icons.task_alt_rounded,
+                bookings: completedBookings,
+                emptyTitle: 'No completed bookings yet.',
+                emptyDescription:
+                    'Finished services will move into this section.',
+                onCancelBooking: onCancelBooking,
+                onCallProvider: onCallProvider,
+                onOpenChat: onOpenChat,
+              ),
+              const SizedBox(height: 22),
+              _BookingGroupSection(
+                title: 'Cancelled',
+                description: 'Cancelled or declined service requests.',
+                icon: Icons.cancel_outlined,
+                bookings: cancelledBookings,
+                emptyTitle: 'No cancelled bookings.',
+                emptyDescription:
+                    'Cancelled and declined requests will appear here.',
+                onCancelBooking: onCancelBooking,
+                onCallProvider: onCallProvider,
+                onOpenChat: onOpenChat,
+              ),
+              if (otherBookings.isNotEmpty) ...[
+                const SizedBox(height: 22),
+                _BookingGroupSection(
+                  title: 'Other',
+                  description: 'Bookings with another status.',
+                  icon: Icons.info_outline_rounded,
+                  bookings: otherBookings,
+                  emptyTitle: 'No other bookings.',
+                  emptyDescription: 'Unexpected booking statuses appear here.',
+                  onCancelBooking: onCancelBooking,
+                  onCallProvider: onCallProvider,
+                  onOpenChat: onOpenChat,
                 ),
-                const SizedBox(height: 16),
               ],
+            ],
           ],
         );
       },
+    );
+  }
+
+  bool _isPendingBooking(ProviderBookingModel booking) {
+    return booking.isPending || booking.isAccepted;
+  }
+
+  bool _isCompletedBooking(ProviderBookingModel booking) {
+    return booking.isCompleted;
+  }
+
+  bool _isCancelledBooking(ProviderBookingModel booking) {
+    final status = booking.status.trim().toLowerCase();
+    return booking.isCancelled ||
+        status == 'declined' ||
+        status.startsWith('cancelled');
+  }
+}
+
+class _BookingGroupSection extends StatelessWidget {
+  const _BookingGroupSection({
+    required this.title,
+    required this.description,
+    required this.icon,
+    required this.bookings,
+    required this.emptyTitle,
+    required this.emptyDescription,
+    required this.onCancelBooking,
+    required this.onCallProvider,
+    required this.onOpenChat,
+  });
+
+  final String title;
+  final String description;
+  final IconData icon;
+  final List<ProviderBookingModel> bookings;
+  final String emptyTitle;
+  final String emptyDescription;
+  final ValueChanged<ProviderBookingModel> onCancelBooking;
+  final ValueChanged<ProviderBookingModel> onCallProvider;
+  final ValueChanged<ProviderBookingModel> onOpenChat;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _BookingGroupHeader(
+          title: title,
+          description: description,
+          icon: icon,
+          count: bookings.length,
+        ),
+        const SizedBox(height: 12),
+        if (bookings.isEmpty)
+          _BookingGroupEmpty(title: emptyTitle, description: emptyDescription)
+        else
+          for (final booking in bookings) ...[
+            _CustomerBookingCard(
+              booking: booking,
+              onCancel: () => onCancelBooking(booking),
+              onCallProvider: () => onCallProvider(booking),
+              onOpenChat: () => onOpenChat(booking),
+            ),
+            if (booking != bookings.last) const SizedBox(height: 16),
+          ],
+      ],
+    );
+  }
+}
+
+class _BookingGroupHeader extends StatelessWidget {
+  const _BookingGroupHeader({
+    required this.title,
+    required this.description,
+    required this.icon,
+    required this.count,
+  });
+
+  final String title;
+  final String description;
+  final IconData icon;
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final background = theme.tokens.primarySoft;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: theme.colorScheme.primary.withValues(alpha: 0.10),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: theme.colorScheme.primary, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: AppTheme.resolveOnColor(background),
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  description,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: AppTheme.resolveOnColor(
+                      background,
+                    ).withValues(alpha: 0.72),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              count.toString(),
+              style: theme.textTheme.labelLarge?.copyWith(
+                color: theme.colorScheme.primary,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BookingGroupEmpty extends StatelessWidget {
+  const _BookingGroupEmpty({required this.title, required this.description});
+
+  final String title;
+  final String description;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.tokens.subtleSurface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.45),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.inbox_outlined,
+            size: 22,
+            color: theme.colorScheme.primary,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  description,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.textTheme.bodySmall?.color?.withValues(
+                      alpha: 0.70,
+                    ),
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1288,73 +1730,148 @@ class _CustomerBookingCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tokens = theme.tokens;
 
-    return Card(
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.60),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(AppSizes.cardPadding),
+        padding: const EdgeInsets.all(22),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                CircleAvatar(
-                  backgroundColor: theme.tokens.primarySoft,
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: tokens.primarySoft,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: theme.colorScheme.primary.withValues(alpha: 0.08),
+                    ),
+                  ),
                   child: Icon(
                     Icons.calendar_month_rounded,
-                    color: AppTheme.resolveOnColor(theme.tokens.primarySoft),
+                    color: theme.colorScheme.primary,
+                    size: 26,
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         booking.serviceTitle,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.w800,
+                          height: 1.12,
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 7),
                       Text(
                         booking.providerName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.bodyMedium?.copyWith(
                           color: theme.textTheme.bodyMedium?.color?.withValues(
-                            alpha: 0.74,
+                            alpha: 0.68,
                           ),
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ],
                   ),
                 ),
-                _InfoPill(label: booking.status),
+                const SizedBox(width: 10),
+                _BookingStatusPill(status: booking.status),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
+            Divider(
+              height: 1,
+              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.70),
+            ),
+            const SizedBox(height: 14),
             Wrap(
               spacing: 10,
               runSpacing: 10,
               children: [
-                if (booking.selectedDate != null)
-                  _InfoPill(label: _formatDate(booking.selectedDate!)),
-                if (booking.selectedTimeSlot.trim().isNotEmpty)
-                  _InfoPill(label: booking.selectedTimeSlot),
-                _InfoPill(label: 'Payment: ${booking.paymentStatus}'),
-                _InfoPill(label: _formatCurrency(booking.totalAmount)),
+                _BookingMetaPill(
+                  icon: Icons.calendar_today_outlined,
+                  label: booking.selectedDate == null
+                      ? 'Date not set'
+                      : _formatDate(booking.selectedDate!),
+                ),
+                _BookingMetaPill(
+                  icon: Icons.schedule_rounded,
+                  label: booking.selectedTimeSlot.trim().isEmpty
+                      ? 'Slot not set'
+                      : booking.selectedTimeSlot,
+                ),
+                _BookingMetaPill(
+                  icon: Icons.account_balance_wallet_outlined,
+                  label:
+                      'Payment: ${_formatPaymentStatus(booking.paymentStatus)}',
+                ),
+                _BookingMetaPill(
+                  icon: Icons.payments_outlined,
+                  label: _formatCurrency(booking.totalAmount),
+                ),
               ],
             ),
             if (booking.serviceAddress.trim().isNotEmpty) ...[
-              const SizedBox(height: 14),
-              Text(
-                booking.serviceAddress,
-                style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
+              const SizedBox(height: 18),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: tokens.primarySoft,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.location_on_outlined,
+                      size: 20,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      booking.serviceAddress,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        height: 1.45,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
             if (booking.notes.trim().isNotEmpty) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               Text(
-                booking.notes,
+                'Notes: ${booking.notes}',
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: theme.textTheme.bodyMedium?.color?.withValues(
                     alpha: 0.74,
@@ -1366,41 +1883,186 @@ class _CustomerBookingCard extends StatelessWidget {
             if (booking.isCancelled &&
                 (booking.providerCancellationFee > 0 ||
                     booking.platformCancellationFee > 0)) ...[
-              const SizedBox(height: 12),
-              Text(
-                'Cancellation fees: provider ${_formatCurrency(booking.providerCancellationFee)}, platform ${_formatCurrency(booking.platformCancellationFee)}.',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.textTheme.bodySmall?.color?.withValues(
-                    alpha: 0.72,
+              const SizedBox(height: 14),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.error.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(AppSizes.radiusMd),
+                  border: Border.all(
+                    color: theme.colorScheme.error.withValues(alpha: 0.16),
+                  ),
+                ),
+                child: Text(
+                  'Cancellation fees: provider ${_formatCurrency(booking.providerCancellationFee)}, platform ${_formatCurrency(booking.platformCancellationFee)}.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.error,
+                    fontWeight: FontWeight.w700,
+                    height: 1.35,
                   ),
                 ),
               ),
             ],
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: onCallProvider,
-                  icon: const Icon(Icons.call_outlined),
-                  label: const Text('Call provider'),
-                ),
-                OutlinedButton.icon(
-                  onPressed: onOpenChat,
-                  icon: const Icon(Icons.chat_bubble_outline_rounded),
-                  label: const Text('Chat'),
-                ),
-                if (booking.canCustomerCancel)
-                  FilledButton.icon(
+            if (!booking.isCancelled) ...[
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Expanded(
+                    child: _BookingOutlinedAction(
+                      icon: Icons.call_outlined,
+                      label: 'Call',
+                      onPressed: onCallProvider,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _BookingOutlinedAction(
+                      icon: Icons.chat_bubble_outline_rounded,
+                      label: 'Chat',
+                      onPressed: onOpenChat,
+                    ),
+                  ),
+                ],
+              ),
+              if (booking.canCustomerCancel) ...[
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: theme.colorScheme.error,
+                      side: BorderSide(
+                        color: theme.colorScheme.error.withValues(alpha: 0.45),
+                      ),
+                    ),
                     onPressed: onCancel,
                     icon: const Icon(Icons.cancel_outlined),
                     label: const Text('Cancel booking'),
                   ),
+                ),
               ],
-            ),
+            ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _BookingStatusPill extends StatelessWidget {
+  const _BookingStatusPill({required this.status});
+
+  final String status;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final normalizedStatus = status.trim().toLowerCase();
+    final background = switch (normalizedStatus) {
+      'accepted' => theme.tokens.primarySoft,
+      'completed' => theme.tokens.successSoft,
+      'cancelled_by_customer' ||
+      'declined' => theme.colorScheme.error.withValues(alpha: 0.10),
+      _ => theme.tokens.subtleSurface,
+    };
+    final foreground =
+        normalizedStatus == 'cancelled_by_customer' ||
+            normalizedStatus == 'declined'
+        ? theme.colorScheme.error
+        : AppTheme.resolveOnColor(background);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        _formatBookingStatus(status),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: foreground,
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+}
+
+class _BookingMetaPill extends StatelessWidget {
+  const _BookingMetaPill({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final background = theme.tokens.subtleSurface;
+    final maxLabelWidth = (MediaQuery.sizeOf(context).width - 150)
+        .clamp(90.0, 420.0)
+        .toDouble();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.45),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: theme.colorScheme.primary),
+          const SizedBox(width: 6),
+          ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: maxLabelWidth),
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: AppTheme.resolveOnColor(background),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BookingOutlinedAction extends StatelessWidget {
+  const _BookingOutlinedAction({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton(
+      onPressed: onPressed,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 18),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+          ),
+        ],
       ),
     );
   }
@@ -1445,49 +2107,8 @@ class _SectionHeader extends StatelessWidget {
             ],
           ),
         ),
-        ...switch (action) {
-          final action? => [action],
-          null => const <Widget>[],
-        },
+        ...?(action == null ? null : [action!]),
       ],
-    );
-  }
-}
-
-class _ActiveFiltersSummary extends StatelessWidget {
-  const _ActiveFiltersSummary({
-    required this.selectedCategory,
-    required this.selectedRating,
-  });
-
-  final String selectedCategory;
-  final double? selectedRating;
-
-  @override
-  Widget build(BuildContext context) {
-    final filters = <String>[
-      if (selectedCategory != 'All') selectedCategory,
-      if (selectedRating != null)
-        '${selectedRating!.toStringAsFixed(selectedRating! % 1 == 0 ? 0 : 1)}+ stars',
-    ];
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: Theme.of(context).tokens.subtleSurface,
-        borderRadius: BorderRadius.circular(AppSizes.radiusMd),
-      ),
-      child: Text(
-        filters.isEmpty
-            ? 'Showing all service listings.'
-            : 'Active filters: ${filters.join(' | ')}',
-        style: TextStyle(
-          color: AppTheme.resolveOnColor(
-            Theme.of(context).tokens.subtleSurface,
-          ),
-          fontWeight: FontWeight.w600,
-        ),
-      ),
     );
   }
 }
@@ -1548,27 +2169,50 @@ class _ServiceFeedCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final tokens = theme.tokens;
+    final locationLabel = service.location.trim().isEmpty
+        ? 'Location not listed'
+        : service.location.trim();
 
-    return Card(
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.60),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(AppSizes.cardPadding),
+        padding: const EdgeInsets.all(22),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Padding(
-                  padding: const EdgeInsets.only(top: 2),
-                  child: CircleAvatar(
-                    backgroundColor: tokens.primarySoft,
-                    child: Icon(
-                      Icons.home_repair_service_rounded,
-                      color: AppTheme.resolveOnColor(tokens.primarySoft),
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: tokens.primarySoft,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: theme.colorScheme.primary.withValues(alpha: 0.08),
                     ),
                   ),
+                  child: Icon(
+                    Icons.home_repair_service_rounded,
+                    color: theme.colorScheme.primary,
+                    size: 26,
+                  ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1578,34 +2222,34 @@ class _ServiceFeedCard extends StatelessWidget {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.w800,
+                          height: 1.12,
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 7),
                       Text(
-                        service.providerName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        service.category,
-                        maxLines: 1,
+                        '${service.providerName} | ${service.category}',
+                        maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.bodyMedium?.copyWith(
                           color: theme.textTheme.bodyMedium?.color?.withValues(
-                            alpha: 0.74,
+                            alpha: 0.68,
                           ),
+                          fontWeight: FontWeight.w600,
+                          height: 1.28,
                         ),
                       ),
                     ],
                   ),
                 ),
-                _InfoPill(label: '${service.rating.toStringAsFixed(1)} stars'),
+                const SizedBox(width: 10),
+                _ServiceRatingPill(rating: service.rating),
               ],
+            ),
+            const SizedBox(height: 18),
+            Divider(
+              height: 1,
+              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.70),
             ),
             const SizedBox(height: 14),
             Text(
@@ -1622,11 +2266,14 @@ class _ServiceFeedCard extends StatelessWidget {
               spacing: 10,
               runSpacing: 10,
               children: [
-                _InfoPill(
+                _ServiceMetaPill(
+                  icon: Icons.payments_outlined,
                   label: 'PHP ${service.price.toStringAsFixed(0)} fixed',
                 ),
-                if (service.location.trim().isNotEmpty)
-                  _InfoPill(label: service.location),
+                _ServiceMetaPill(
+                  icon: Icons.location_on_outlined,
+                  label: locationLabel,
+                ),
               ],
             ),
             const SizedBox(height: 18),
@@ -1640,6 +2287,89 @@ class _ServiceFeedCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ServiceRatingPill extends StatelessWidget {
+  const _ServiceRatingPill({required this.rating});
+
+  final double rating;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: theme.tokens.subtleSurface,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.50),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.star_rounded, size: 16, color: theme.colorScheme.primary),
+          const SizedBox(width: 5),
+          Text(
+            '${rating.toStringAsFixed(1)} stars',
+            style: TextStyle(
+              color: AppTheme.resolveOnColor(theme.tokens.subtleSurface),
+              fontWeight: FontWeight.w800,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ServiceMetaPill extends StatelessWidget {
+  const _ServiceMetaPill({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final background = theme.tokens.subtleSurface;
+    final maxLabelWidth = (MediaQuery.sizeOf(context).width - 150)
+        .clamp(90.0, 420.0)
+        .toDouble();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.45),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: theme.colorScheme.primary),
+          const SizedBox(width: 6),
+          ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: maxLabelWidth),
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: AppTheme.resolveOnColor(background),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1663,119 +2393,415 @@ class _JobFeedCard extends StatelessWidget {
     final theme = Theme.of(context);
     final tokens = theme.tokens;
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSizes.cardPadding),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (job.photoUrl.trim().isNotEmpty) ...[
-              ClipRRect(
-                borderRadius: BorderRadius.circular(AppSizes.radiusMd),
-                child: Image.network(
-                  job.photoUrl,
-                  height: 180,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
-                    return const SizedBox.shrink();
-                  },
-                ),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _showDetailsSheet(context),
+        borderRadius: BorderRadius.circular(24),
+        child: Ink(
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.60),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.06),
+                blurRadius: 24,
+                offset: const Offset(0, 12),
               ),
-              const SizedBox(height: 16),
             ],
-            Row(
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(22),
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Padding(
-                  padding: const EdgeInsets.only(top: 2),
-                  child: CircleAvatar(
-                    backgroundColor: tokens.accentSoft,
-                    child: Icon(
-                      Icons.campaign_outlined,
-                      color: AppTheme.resolveOnColor(tokens.accentSoft),
+                if (job.photoUrl.trim().isNotEmpty) ...[
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(AppSizes.radiusMd),
+                    child: Image.network(
+                      job.photoUrl,
+                      height: 160,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return const SizedBox.shrink();
+                      },
                     ),
                   ),
+                  const SizedBox(height: 16),
+                ],
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        color: tokens.accentSoft,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.campaign_outlined,
+                        color: AppTheme.resolveOnColor(tokens.accentSoft),
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            job.title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              height: 1.12,
+                            ),
+                          ),
+                          const SizedBox(height: 7),
+                          Text(
+                            job.description,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: theme.textTheme.bodyMedium?.color
+                                  ?.withValues(alpha: 0.70),
+                              height: 1.38,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    _JobStatusPill(label: job.status),
+                  ],
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        job.customerName,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Text(
+                      'View details',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.primary,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(
+                      Icons.arrow_forward_rounded,
+                      size: 18,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showDetailsSheet(BuildContext context) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      showDragHandle: false,
+      builder: (sheetContext) {
+        final theme = Theme.of(sheetContext);
+        final tokens = theme.tokens;
+
+        return SafeArea(
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 640),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(30),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.18),
+                    blurRadius: 32,
+                    offset: const Offset(0, -10),
+                  ),
+                ],
+              ),
+              child: SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(
+                  AppSizes.pagePadding,
+                  14,
+                  AppSizes.pagePadding,
+                  MediaQuery.of(sheetContext).viewInsets.bottom +
+                      AppSizes.pagePadding,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        IconButton(
+                          tooltip: 'Back',
+                          onPressed: () => Navigator.of(sheetContext).pop(),
+                          icon: const Icon(Icons.arrow_back_rounded),
+                          style: IconButton.styleFrom(
+                            backgroundColor: tokens.primarySoft,
+                            foregroundColor: theme.colorScheme.primary,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Job details',
+                            style: theme.textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              height: 1.1,
+                            ),
+                          ),
+                        ),
+                        _JobStatusPill(label: job.status),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    if (job.photoUrl.trim().isNotEmpty) ...[
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(22),
+                        child: Image.network(
+                          job.photoUrl,
+                          height: 180,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return const SizedBox.shrink();
+                          },
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Posted request',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.textTheme.bodyMedium?.color?.withValues(
-                            alpha: 0.74,
+                      const SizedBox(height: 18),
+                    ],
+                    Text(
+                      job.title,
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        height: 1.1,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      job.description,
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        color: theme.textTheme.bodyLarge?.color?.withValues(
+                          alpha: 0.74,
+                        ),
+                        height: 1.5,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: tokens.subtleSurface,
+                        borderRadius: BorderRadius.circular(22),
+                        border: Border.all(
+                          color: theme.colorScheme.outlineVariant.withValues(
+                            alpha: 0.55,
                           ),
                         ),
                       ),
+                      child: Column(
+                        children: [
+                          _JobDetailRow(
+                            icon: Icons.category_outlined,
+                            label: 'Category',
+                            value: job.category,
+                          ),
+                          _JobDetailRow(
+                            icon: Icons.payments_outlined,
+                            label: 'Budget',
+                            value: '${_formatCurrency(job.budget)} budget',
+                          ),
+                          _JobDetailRow(
+                            icon: Icons.speed_rounded,
+                            label: 'Difficulty',
+                            value: job.difficulty,
+                          ),
+                          _JobDetailRow(
+                            icon: Icons.location_on_outlined,
+                            label: 'Location',
+                            value: job.readableLocation,
+                            isLast: job.ratingFilter == null,
+                          ),
+                          if (job.ratingFilter != null)
+                            _JobDetailRow(
+                              icon: Icons.star_rounded,
+                              label: 'Provider rating',
+                              value:
+                                  '${job.ratingFilter!.toStringAsFixed(job.ratingFilter! % 1 == 0 ? 0 : 1)}+ stars',
+                              isLast: true,
+                            ),
+                        ],
+                      ),
+                    ),
+                    if (canManage) ...[
+                      const SizedBox(height: AppSizes.sectionGap),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: FilledButton.icon(
+                              onPressed: () {
+                                Navigator.of(sheetContext).pop();
+                                WidgetsBinding.instance.addPostFrameCallback((
+                                  _,
+                                ) {
+                                  onEdit();
+                                });
+                              },
+                              icon: const Icon(Icons.edit_outlined),
+                              label: const Text('Edit post'),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: theme.colorScheme.error,
+                                side: BorderSide(
+                                  color: theme.colorScheme.error.withValues(
+                                    alpha: 0.45,
+                                  ),
+                                ),
+                              ),
+                              onPressed: () {
+                                Navigator.of(sheetContext).pop();
+                                WidgetsBinding.instance.addPostFrameCallback((
+                                  _,
+                                ) {
+                                  onDelete();
+                                });
+                              },
+                              icon: const Icon(Icons.delete_outline_rounded),
+                              label: const Text('Delete'),
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
-                  ),
+                  ],
                 ),
-                if (canManage)
-                  PopupMenuButton<String>(
-                    tooltip: 'Job actions',
-                    onSelected: (value) {
-                      switch (value) {
-                        case 'edit':
-                          onEdit();
-                          break;
-                        case 'delete':
-                          onDelete();
-                          break;
-                      }
-                    },
-                    itemBuilder: (context) => const [
-                      PopupMenuItem(value: 'edit', child: Text('Edit')),
-                      PopupMenuItem(value: 'delete', child: Text('Delete')),
-                    ],
-                  ),
-                _InfoPill(label: job.status),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Text(
-              job.title,
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w700,
               ),
             ),
-            const SizedBox(height: 10),
-            Text(
-              job.description,
-              style: theme.textTheme.bodyLarge?.copyWith(
-                color: theme.textTheme.bodyLarge?.color?.withValues(
-                  alpha: 0.74,
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _JobStatusPill extends StatelessWidget {
+  const _JobStatusPill({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final background = Theme.of(context).tokens.subtleSurface;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: AppTheme.resolveOnColor(background),
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+}
+
+class _JobDetailRow extends StatelessWidget {
+  const _JobDetailRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.isLast = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final bool isLast;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: isLast ? 0 : 14),
+      child: Column(
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: theme.tokens.primarySoft,
+                  shape: BoxShape.circle,
                 ),
-                height: 1.5,
+                child: Icon(icon, size: 18, color: theme.colorScheme.primary),
               ),
-            ),
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                _InfoPill(label: job.category),
-                _InfoPill(label: 'PHP ${job.budget.toStringAsFixed(0)} budget'),
-                _InfoPill(label: 'Difficulty: ${job.difficulty}'),
-                _InfoPill(label: job.readableLocation),
-                if (job.ratingFilter != null)
-                  _InfoPill(
-                    label:
-                        'Prefers ${job.ratingFilter!.toStringAsFixed(job.ratingFilter! % 1 == 0 ? 0 : 1)}+ stars',
-                  ),
-              ],
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.textTheme.bodySmall?.color?.withValues(
+                          alpha: 0.62,
+                        ),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      value,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (!isLast) ...[
+            const SizedBox(height: 14),
+            Divider(
+              height: 1,
+              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.65),
             ),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -1852,33 +2878,47 @@ class _EditableJobPhoto extends StatelessWidget {
   }
 }
 
-class _InfoPill extends StatelessWidget {
-  const _InfoPill({required this.label});
+String _formatCurrency(double value) => 'PHP ${value.toStringAsFixed(2)}';
 
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final background = Theme.of(context).tokens.subtleSurface;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: AppTheme.resolveOnColor(background),
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
+String _formatBookingStatus(String status) {
+  return switch (status.trim().toLowerCase()) {
+    'pending' => 'Pending',
+    'accepted' => 'Accepted',
+    'completed' => 'Completed',
+    'declined' => 'Declined',
+    'cancelled_by_customer' => 'Cancelled',
+    _ => _titleizeStatus(status),
+  };
 }
 
-String _formatCurrency(double value) => 'PHP ${value.toStringAsFixed(2)}';
+String _formatPaymentStatus(String status) {
+  return switch (status.trim().toLowerCase()) {
+    'pending' => 'Pending',
+    'paid' => 'Paid',
+    'failed' => 'Failed',
+    'refunded' => 'Refunded',
+    'cancelled_fee_charged' => 'Fee charged',
+    _ => _titleizeStatus(status),
+  };
+}
+
+String _titleizeStatus(String status) {
+  final words = status.trim().replaceAll('_', ' ').split(RegExp(r'\s+'));
+  if (words.isEmpty || words.first.isEmpty) {
+    return 'Pending';
+  }
+
+  return words
+      .map((word) {
+        if (word.isEmpty) {
+          return word;
+        }
+
+        final lower = word.toLowerCase();
+        return '${lower[0].toUpperCase()}${lower.substring(1)}';
+      })
+      .join(' ');
+}
 
 String _formatDate(DateTime value) {
   const months = [
