@@ -55,13 +55,61 @@ class CustomerService {
   }
 
   Stream<List<JobPostModel>> streamJobs({String? category}) {
-    return _jobsCollection.snapshots().map((snapshot) {
-      final jobs =
-          snapshot.docs
-              .map((doc) => JobPostModel.fromMap(doc.data(), doc.id))
-              .where((job) => _matchesCategory(job.category, category))
-              .toList()
-            ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return streamOpenJobsForProviders(category: category);
+  }
+
+  Stream<List<JobPostModel>> streamCustomerJobs(String customerId) {
+    return _jobsCollection
+        .where('customerId', isEqualTo: customerId)
+        .snapshots()
+        .map((snapshot) => _readSortedJobs(snapshot.docs));
+  }
+
+  Stream<List<JobPostModel>> streamOpenJobsForProviders({
+    String? category,
+    List<String>? categories,
+    double? minRating,
+    String? excludeCustomerId,
+  }) {
+    final effectiveCategories = _resolveCategories(
+      category: category,
+      categories: categories,
+    );
+
+    Query<Map<String, dynamic>> query = _jobsCollection.where(
+      'status',
+      isEqualTo: 'open',
+    );
+
+    if (effectiveCategories.length == 1) {
+      query = query.where('category', isEqualTo: effectiveCategories.single);
+    } else if (effectiveCategories.length > 1 &&
+        effectiveCategories.length <= 10) {
+      // Firestore whereIn supports up to 10 values; larger lists are filtered
+      // after the open-job query instead of requiring extra composite indexes.
+      query = query.where('category', whereIn: effectiveCategories);
+    }
+
+    return query.snapshots().map((snapshot) {
+      final jobs = _readSortedJobs(snapshot.docs).where((job) {
+        final matchesCategory =
+            effectiveCategories.isEmpty ||
+            effectiveCategories.length <= 10 ||
+            effectiveCategories.any(
+              (category) => _matchesCategory(job.category, category),
+            );
+        final matchesRating =
+            minRating == null ||
+            job.ratingFilter == null ||
+            job.ratingFilter! <= minRating;
+        final isNotOwnJob =
+            excludeCustomerId == null || job.customerId != excludeCustomerId;
+
+        return job.status == 'open' &&
+            matchesCategory &&
+            matchesRating &&
+            isNotOwnJob;
+      }).toList();
 
       return jobs;
     });
@@ -161,15 +209,21 @@ class CustomerService {
     }
 
     final now = DateTime.now();
+    final resolvedAddress = _resolveLocationAddress(
+      address: address,
+      latitude: latitude,
+      longitude: longitude,
+    );
     final updatedUser = currentUser.copyWith(
       firstName: firstName.trim(),
       middleName: middleName.trim(),
       lastName: lastName.trim(),
       suffix: suffix.trim(),
       phone: phone.trim(),
-      address: address.trim(),
+      address: resolvedAddress,
       latitude: latitude,
       longitude: longitude,
+      clearCoordinates: latitude == null || longitude == null,
       profilePic: profilePic.trim(),
       photosPermission: photosPermission ?? currentUser.photosPermission,
       locationPermission: locationPermission ?? currentUser.locationPermission,
@@ -219,6 +273,52 @@ class CustomerService {
     }
 
     return source.trim().toLowerCase() == selectedCategory.trim().toLowerCase();
+  }
+
+  List<JobPostModel> _readSortedJobs(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+  ) {
+    return docs.map((doc) => JobPostModel.fromMap(doc.data(), doc.id)).toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  }
+
+  List<String> _resolveCategories({
+    String? category,
+    List<String>? categories,
+  }) {
+    final selected = <String>[?category, ...?categories];
+    final seen = <String>{};
+    final normalized = <String>[];
+
+    for (final value in selected) {
+      final cleaned = value.trim();
+      final key = cleaned.toLowerCase();
+      if (cleaned.isEmpty || key == 'all' || seen.contains(key)) {
+        continue;
+      }
+
+      seen.add(key);
+      normalized.add(cleaned);
+    }
+
+    return normalized;
+  }
+
+  String _resolveLocationAddress({
+    required String address,
+    required double? latitude,
+    required double? longitude,
+  }) {
+    final cleaned = address.trim();
+    if (cleaned.isNotEmpty) {
+      return cleaned;
+    }
+
+    if (latitude != null && longitude != null) {
+      return 'Location captured, address unavailable';
+    }
+
+    return '';
   }
 
   DateTime? _readDateTime(dynamic value) {

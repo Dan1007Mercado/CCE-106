@@ -83,6 +83,9 @@ class LocationService {
       latitude: position.latitude,
       longitude: position.longitude,
     );
+    final locationLabel = address.trim().isEmpty
+        ? 'Location captured, address unavailable'
+        : address;
 
     return LocationCaptureResult(
       state: LocationCaptureState.success,
@@ -90,7 +93,7 @@ class LocationService {
       message: 'Current location captured.',
       latitude: position.latitude,
       longitude: position.longitude,
-      address: address,
+      address: locationLabel,
     );
   }
 
@@ -119,17 +122,24 @@ class LocationService {
       }
 
       final placemark = placemarks.first;
-      final parts =
-          [
-                placemark.street,
-                placemark.subLocality,
-                placemark.locality,
-                placemark.administrativeArea,
-                placemark.country,
-              ]
-              .map((part) => part?.trim() ?? '')
-              .where((part) => part.isNotEmpty)
-              .toList();
+      final seen = <String>{};
+      final parts = <String>[];
+      for (final rawPart in [
+        placemark.street,
+        placemark.subLocality,
+        placemark.subAdministrativeArea,
+        placemark.locality,
+        placemark.administrativeArea,
+      ]) {
+        final part = rawPart?.trim() ?? '';
+        final key = part.toLowerCase();
+        if (part.isEmpty || seen.contains(key)) {
+          continue;
+        }
+
+        seen.add(key);
+        parts.add(part);
+      }
 
       return parts.join(', ');
     } catch (_) {

@@ -6,8 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'core/constants/app_strings.dart';
 import 'core/theme/app_theme.dart';
-import 'core/widgets/loading_indicator.dart';
 import 'core/utils/helpers.dart';
+import 'core/widgets/animated_brand_loader.dart';
 import 'features/auth/bloc/auth_bloc.dart';
 import 'features/auth/bloc/auth_event.dart';
 import 'features/auth/bloc/auth_state.dart';
@@ -277,46 +277,108 @@ class _HandyMarketAppViewState extends State<_HandyMarketAppView>
   }
 }
 
-class _AuthGate extends StatelessWidget {
+class _AuthGate extends StatefulWidget {
   const _AuthGate();
 
   @override
-  Widget build(BuildContext context) {
-    return BlocBuilder<AuthBloc, AuthState>(
-      builder: (context, state) {
-        final Widget page;
-        if (state.status == AuthStatus.unknown) {
-          page = const Scaffold(
-            body: Center(
-              child: LoadingIndicator(message: 'Checking your account...'),
-            ),
-          );
-        } else if (state.status == AuthStatus.authenticated &&
-            state.user != null) {
-          page = const HomePage();
-        } else {
-          page = const LoginPage();
+  State<_AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<_AuthGate> {
+  static const Duration _loaderSettleDuration = Duration(milliseconds: 220);
+
+  AuthStatus? _displayStatus;
+  Timer? _loaderSettleTimer;
+  bool _loaderSpinning = true;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_displayStatus != null) {
+      return;
+    }
+
+    final initialStatus = context.read<AuthBloc>().state.status;
+    _displayStatus = initialStatus;
+    _loaderSpinning = initialStatus == AuthStatus.unknown;
+  }
+
+  @override
+  void dispose() {
+    _loaderSettleTimer?.cancel();
+    super.dispose();
+  }
+
+  void _showStatus(AuthStatus status) {
+    _loaderSettleTimer?.cancel();
+
+    if (_displayStatus == AuthStatus.unknown && status != AuthStatus.unknown) {
+      setState(() {
+        _loaderSpinning = false;
+      });
+
+      _loaderSettleTimer = Timer(_loaderSettleDuration, () {
+        if (!mounted) {
+          return;
         }
 
-        return AnimatedSwitcher(
-          duration: AppTheme.motionDuration,
-          reverseDuration: AppTheme.motionReverseDuration,
-          switchInCurve: AppTheme.motionCurve,
-          switchOutCurve: AppTheme.motionCurve,
-          transitionBuilder: (child, animation) {
-            final offsetAnimation = Tween<Offset>(
-              begin: const Offset(0, 0.02),
-              end: Offset.zero,
-            ).animate(animation);
+        final currentStatus = context.read<AuthBloc>().state.status;
+        setState(() {
+          _displayStatus = currentStatus;
+          _loaderSpinning = currentStatus == AuthStatus.unknown;
+        });
+      });
+      return;
+    }
 
-            return FadeTransition(
-              opacity: animation,
-              child: SlideTransition(position: offsetAnimation, child: child),
+    setState(() {
+      _displayStatus = status;
+      _loaderSpinning = status == AuthStatus.unknown;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocListener<AuthBloc, AuthState>(
+      listenWhen: (previous, current) => previous.status != current.status,
+      listener: (context, state) => _showStatus(state.status),
+      child: BlocBuilder<AuthBloc, AuthState>(
+        builder: (context, state) {
+          final status = _displayStatus ?? state.status;
+          final Widget page;
+          if (status == AuthStatus.unknown) {
+            page = AnimatedBrandLoader(
+              message: 'Preparing ${AppStrings.appName}...',
+              spinning: _loaderSpinning,
             );
-          },
-          child: KeyedSubtree(key: ValueKey(state.status), child: page),
-        );
-      },
+          } else if (status == AuthStatus.authenticated &&
+              state.status == AuthStatus.authenticated &&
+              state.user != null) {
+            page = const HomePage();
+          } else {
+            page = const LoginPage();
+          }
+
+          return AnimatedSwitcher(
+            duration: AppTheme.motionDuration,
+            reverseDuration: AppTheme.motionReverseDuration,
+            switchInCurve: AppTheme.motionCurve,
+            switchOutCurve: AppTheme.motionCurve,
+            transitionBuilder: (child, animation) {
+              final offsetAnimation = Tween<Offset>(
+                begin: const Offset(0, 0.02),
+                end: Offset.zero,
+              ).animate(animation);
+
+              return FadeTransition(
+                opacity: animation,
+                child: SlideTransition(position: offsetAnimation, child: child),
+              );
+            },
+            child: KeyedSubtree(key: ValueKey(status), child: page),
+          );
+        },
+      ),
     );
   }
 }

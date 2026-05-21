@@ -168,7 +168,7 @@ class AuthService {
     final cleaned = displayName?.trim() ?? '';
     if (cleaned.isEmpty) {
       return const _FallbackNameParts(
-        firstName: 'Local Services',
+        firstName: 'HandyMarket',
         lastName: 'User',
       );
     }

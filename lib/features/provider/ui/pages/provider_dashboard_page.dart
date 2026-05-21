@@ -10,7 +10,9 @@ import '../../../../core/widgets/loading_indicator.dart';
 import '../../../auth/bloc/auth_bloc.dart';
 import '../../../auth/bloc/auth_event.dart';
 import '../../../auth/data/models/user_model.dart';
+import '../../../customer/data/models/job_post_model.dart';
 import '../../../customer/data/models/service_listing_model.dart';
+import '../../../customer/data/services/customer_service.dart';
 import '../../data/models/provider_availability_slot_model.dart';
 import '../../data/models/provider_booking_model.dart';
 import '../../data/services/provider_service.dart';
@@ -24,6 +26,7 @@ class ProviderDashboardPage extends StatefulWidget {
 
 class _ProviderDashboardPageState extends State<ProviderDashboardPage> {
   final ProviderService _providerService = ProviderService();
+  final CustomerService _customerService = CustomerService();
 
   @override
   Widget build(BuildContext context) {
@@ -43,7 +46,7 @@ class _ProviderDashboardPageState extends State<ProviderDashboardPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Local Services Provider'),
+        title: const Text('HandyMarket Provider'),
         actions: [
           IconButton(
             tooltip: 'Sign out',
@@ -84,19 +87,35 @@ class _ProviderDashboardPageState extends State<ProviderDashboardPage> {
                       final bookings = bookingSnapshot.data ?? const [];
                       final payments = paymentSnapshot.data ?? const [];
                       final slots = availabilitySnapshot.data ?? const [];
+                      final serviceCategories = services
+                          .map((service) => service.category)
+                          .toSet()
+                          .toList();
 
-                      return _ProviderDashboardContent(
-                        user: user,
-                        services: services,
-                        bookings: bookings,
-                        payments: payments,
-                        slots: slots,
-                        onAddService: () => _showAddServiceSheet(user),
-                        onAddSlot: () => _showAddSlotSheet(user),
-                        onAcceptBooking: (booking) =>
-                            _changeBookingStatus(booking, 'accepted'),
-                        onDeclineBooking: (booking) =>
-                            _changeBookingStatus(booking, 'declined'),
+                      return StreamBuilder<List<JobPostModel>>(
+                        stream: _customerService.streamOpenJobsForProviders(
+                          categories: serviceCategories,
+                          excludeCustomerId: user.uid,
+                        ),
+                        builder: (context, jobSnapshot) {
+                          final openJobRequests =
+                              jobSnapshot.data ?? const <JobPostModel>[];
+
+                          return _ProviderDashboardContent(
+                            user: user,
+                            services: services,
+                            bookings: bookings,
+                            payments: payments,
+                            slots: slots,
+                            openJobRequests: openJobRequests,
+                            onAddService: () => _showAddServiceSheet(user),
+                            onAddSlot: () => _showAddSlotSheet(user),
+                            onAcceptBooking: (booking) =>
+                                _changeBookingStatus(booking, 'accepted'),
+                            onDeclineBooking: (booking) =>
+                                _changeBookingStatus(booking, 'declined'),
+                          );
+                        },
                       );
                     },
                   );
@@ -454,6 +473,7 @@ class _ProviderDashboardContent extends StatelessWidget {
     required this.bookings,
     required this.payments,
     required this.slots,
+    required this.openJobRequests,
     required this.onAddService,
     required this.onAddSlot,
     required this.onAcceptBooking,
@@ -465,6 +485,7 @@ class _ProviderDashboardContent extends StatelessWidget {
   final List<ProviderBookingModel> bookings;
   final List<ProviderPaymentModel> payments;
   final List<ProviderAvailabilitySlotModel> slots;
+  final List<JobPostModel> openJobRequests;
   final VoidCallback onAddService;
   final VoidCallback onAddSlot;
   final ValueChanged<ProviderBookingModel> onAcceptBooking;
@@ -556,6 +577,8 @@ class _ProviderDashboardContent extends StatelessWidget {
                     const SizedBox(height: AppSizes.sectionGap),
                     _AvailabilitySection(slots: slots, onAddSlot: onAddSlot),
                   ],
+                  const SizedBox(height: AppSizes.sectionGap),
+                  _OpenJobRequestsSection(jobs: openJobRequests),
                   const SizedBox(height: AppSizes.sectionGap),
                   _ServiceListingsSection(
                     services: services,
@@ -652,6 +675,116 @@ class _ProviderHero extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _OpenJobRequestsSection extends StatelessWidget {
+  const _OpenJobRequestsSection({required this.jobs});
+
+  final List<JobPostModel> jobs;
+
+  @override
+  Widget build(BuildContext context) {
+    return _SectionCard(
+      title: 'Open customer job requests',
+      action: _CountPill(label: jobs.length.toString()),
+      child: jobs.isEmpty
+          ? const _EmptyState(
+              icon: Icons.assignment_outlined,
+              title: 'No matching customer job requests yet.',
+              description:
+                  'Open customer requests that match your service categories will appear here.',
+            )
+          : Column(
+              children: [
+                for (final job in jobs.take(5)) ...[
+                  _OpenJobRequestTile(job: job),
+                  if (job != jobs.take(5).last) const Divider(height: 24),
+                ],
+              ],
+            ),
+    );
+  }
+}
+
+class _OpenJobRequestTile extends StatelessWidget {
+  const _OpenJobRequestTile({required this.job});
+
+  final JobPostModel job;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            CircleAvatar(
+              backgroundColor: theme.tokens.primarySoft,
+              child: Icon(
+                Icons.campaign_outlined,
+                color: AppTheme.resolveOnColor(theme.tokens.primarySoft),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    job.customerName,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    job.category,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.textTheme.bodyMedium?.color?.withValues(
+                        alpha: 0.72,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        Text(
+          job.title,
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          job.description,
+          style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _MetaChip(
+              icon: Icons.location_on_outlined,
+              label: job.readableLocation,
+            ),
+            if (job.ratingFilter != null)
+              _MetaChip(
+                icon: Icons.star_rounded,
+                label:
+                    'Prefers ${job.ratingFilter!.toStringAsFixed(job.ratingFilter! % 1 == 0 ? 0 : 1)}+ stars',
+              ),
+          ],
+        ),
+      ],
     );
   }
 }

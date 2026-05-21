@@ -3,7 +3,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/constants/app_sizes.dart';
 import '../../../../core/constants/app_strings.dart';
-import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/helpers.dart';
 import '../../../../core/utils/validators.dart';
 import '../../../../core/widgets/custom_button.dart';
@@ -71,9 +70,6 @@ class _RegisterPageState extends State<RegisterPage> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final infoBackground = theme.tokens.primarySoft;
-
     return BlocConsumer<AuthBloc, AuthState>(
       listenWhen: (previous, current) =>
           previous.message != current.message ||
@@ -187,22 +183,7 @@ class _RegisterPageState extends State<RegisterPage> {
                             });
                           },
                   ),
-                  const SizedBox(height: 12),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: infoBackground,
-                      borderRadius: BorderRadius.circular(AppSizes.radiusMd),
-                    ),
-                    child: Text(
-                      AppStrings.adminManagedNote,
-                      style: TextStyle(
-                        color: AppTheme.resolveOnColor(infoBackground),
-                        height: 1.4,
-                      ),
-                    ),
-                  ),
+
                   const SizedBox(height: AppSizes.fieldGap),
                   CustomTextField(
                     controller: _passwordController,

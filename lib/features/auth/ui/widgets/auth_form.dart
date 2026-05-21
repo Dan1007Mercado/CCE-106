@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/constants/app_sizes.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/animated_brand_header.dart';
 
 class AuthForm extends StatelessWidget {
   const AuthForm({
@@ -48,19 +49,7 @@ class AuthForm extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Container(
-                          width: 64,
-                          height: 64,
-                          decoration: BoxDecoration(
-                            color: tokens.primarySoft,
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Icon(
-                            Icons.handyman_rounded,
-                            size: 32,
-                            color: AppTheme.resolveOnColor(tokens.primarySoft),
-                          ),
-                        ),
+                        const AnimatedBrandHeader(),
                         const SizedBox(height: 20),
                         Text(
                           title,

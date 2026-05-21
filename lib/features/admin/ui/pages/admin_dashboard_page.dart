@@ -24,7 +24,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   final TextEditingController _searchController = TextEditingController();
   final TextEditingController _termsController = TextEditingController(
     text:
-        'Local Services Marketplace connects customers with verified service providers. Users must provide accurate account, booking, payment, and service information.',
+        'HandyMarket connects customers with verified service providers. Users must provide accurate account, booking, payment, and service information.',
   );
 
   String _searchQuery = '';
@@ -499,7 +499,7 @@ class _AdminSidebar extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'Local Services',
+                    'HandyMarket',
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w800,
                     ),
@@ -705,7 +705,7 @@ class _AdminHero extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Monitor Local Services Marketplace users, provider validations, policy content, and platform revenue.',
+            'Monitor HandyMarket users, provider validations, policy content, and platform revenue.',
             style: theme.textTheme.bodyLarge?.copyWith(
               color: Colors.white.withValues(alpha: 0.88),
               height: 1.45,

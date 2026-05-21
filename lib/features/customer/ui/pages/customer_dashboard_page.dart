@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/constants/app_sizes.dart';
+import '../../../../core/constants/app_strings.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/helpers.dart';
+import '../../../../core/widgets/brand_logo.dart';
 import '../../../../core/widgets/loading_indicator.dart';
 import '../../../../core/widgets/profile_avatar.dart';
 import '../../../../routes/app_router.dart';
@@ -36,15 +40,18 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
   final CustomerService _customerService = CustomerService();
   final TextEditingController _searchController = TextEditingController();
   late final TabController _tabController;
+  Timer? _welcomeTimer;
 
   String _selectedCategory = 'All';
   double? _selectedRating;
   String _searchQuery = '';
+  bool _showWelcomePanel = true;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _welcomeTimer = Timer(const Duration(seconds: 2), _hideWelcomePanel);
     _searchController.addListener(() {
       setState(() {
         _searchQuery = _searchController.text.trim().toLowerCase();
@@ -54,6 +61,7 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
 
   @override
   void dispose() {
+    _welcomeTimer?.cancel();
     _searchController.dispose();
     _tabController.dispose();
     super.dispose();
@@ -86,24 +94,12 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
         titleSpacing: AppSizes.pagePadding,
         title: Row(
           children: [
-            Container(
-              width: 30,
-              height: 36,
-              decoration: BoxDecoration(
-                color: theme.colorScheme.primary,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(
-                Icons.handyman_rounded,
-                color: theme.colorScheme.onPrimary,
-                size: 20,
-              ),
-            ),
+            const BrandLogo(size: 36, borderRadius: 10),
 
             const SizedBox(width: 12), // reduce slightly
             const Flexible(
               child: Text(
-                'Local Services',
+                AppStrings.appName,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(fontWeight: FontWeight.w700),
               ),
@@ -155,7 +151,7 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
                 ),
                 tabs: const [
                   Tab(text: 'Services'),
-                  Tab(text: 'Jobs'),
+                  Tab(text: 'My Jobs'),
                 ],
               ),
             ),
@@ -164,44 +160,84 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
       ),
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSizes.pagePadding,
-              16,
-              AppSizes.pagePadding,
-              0,
-            ),
-            child: _WelcomePanel(user: user),
+          AnimatedSwitcher(
+            duration: AppTheme.motionDuration,
+            reverseDuration: AppTheme.motionReverseDuration,
+            switchInCurve: AppTheme.motionCurve,
+            switchOutCurve: AppTheme.motionCurve,
+            transitionBuilder: (child, animation) {
+              return SizeTransition(
+                sizeFactor: animation,
+                axisAlignment: -1,
+                child: FadeTransition(opacity: animation, child: child),
+              );
+            },
+            child: _showWelcomePanel
+                ? Padding(
+                    key: const ValueKey('welcome-panel'),
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSizes.pagePadding,
+                      16,
+                      AppSizes.pagePadding,
+                      18,
+                    ),
+                    child: _WelcomePanel(user: user),
+                  )
+                : const SizedBox.shrink(key: ValueKey('hidden-welcome-panel')),
           ),
-          const SizedBox(height: 18),
           Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                _ServicesFeedSection(
-                  serviceStream: _customerService.streamServices(
-                    category: _selectedCategory,
-                    minRating: _selectedRating,
+            child: NotificationListener<ScrollNotification>(
+              onNotification: _handleScrollNotification,
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _ServicesFeedSection(
+                    serviceStream: _customerService.streamServices(
+                      category: _selectedCategory,
+                      minRating: _selectedRating,
+                    ),
+                    searchController: _searchController,
+                    searchQuery: _searchQuery,
+                    selectedCategory: _selectedCategory,
+                    selectedRating: _selectedRating,
+                    onOpenFilters: _showServiceFilterSheet,
+                    onOpenDetails: (service) {
+                      Navigator.of(context).pushNamed(
+                        AppRouter.serviceDetailRoute,
+                        arguments: service,
+                      );
+                    },
                   ),
-                  searchController: _searchController,
-                  searchQuery: _searchQuery,
-                  selectedCategory: _selectedCategory,
-                  selectedRating: _selectedRating,
-                  onOpenFilters: _showServiceFilterSheet,
-                  onOpenDetails: (service) {
-                    Navigator.of(context).pushNamed(
-                      AppRouter.serviceDetailRoute,
-                      arguments: service,
-                    );
-                  },
-                ),
-                _JobsFeedSection(jobsStream: _customerService.streamJobs()),
-              ],
+                  _CustomerJobsSection(
+                    jobsStream: _customerService.streamCustomerJobs(user.uid),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
       ),
     );
+  }
+
+  bool _handleScrollNotification(ScrollNotification notification) {
+    if (notification.metrics.pixels > 10) {
+      _hideWelcomePanel();
+    }
+
+    return false;
+  }
+
+  void _hideWelcomePanel() {
+    if (!mounted || !_showWelcomePanel) {
+      return;
+    }
+
+    _welcomeTimer?.cancel();
+    _welcomeTimer = null;
+    setState(() {
+      _showWelcomePanel = false;
+    });
   }
 
   Future<void> _showServiceFilterSheet() async {
@@ -555,8 +591,8 @@ class _ServicesFeedSection extends StatelessWidget {
   }
 }
 
-class _JobsFeedSection extends StatelessWidget {
-  const _JobsFeedSection({required this.jobsStream});
+class _CustomerJobsSection extends StatelessWidget {
+  const _CustomerJobsSection({required this.jobsStream});
 
   final Stream<List<JobPostModel>> jobsStream;
 
@@ -580,15 +616,15 @@ class _JobsFeedSection extends StatelessWidget {
           ),
           children: [
             const _SectionHeader(
-              title: 'Job feed',
-              description: 'Customer job requests only.',
+              title: 'My posted jobs',
+              description: 'Track the job requests you have posted.',
             ),
             const SizedBox(height: 18),
             if (jobs.isEmpty)
               const _EmptyFeedCard(
-                title: 'No customer jobs have been posted yet.',
+                title: 'You have not posted any jobs yet.',
                 description:
-                    'Post the first request from the button below to start the job feed.',
+                    'Use Post a Job when you need providers to respond to a request.',
               )
             else
               for (final job in jobs) ...[
@@ -869,7 +905,7 @@ class _JobFeedCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Customer job post',
+                        'Posted request',
                         style: theme.textTheme.bodyMedium?.copyWith(
                           color: theme.textTheme.bodyMedium?.color?.withValues(
                             alpha: 0.74,
@@ -879,7 +915,7 @@ class _JobFeedCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                _InfoPill(label: job.category),
+                _InfoPill(label: job.status),
               ],
             ),
             const SizedBox(height: 16),
@@ -904,7 +940,8 @@ class _JobFeedCard extends StatelessWidget {
               spacing: 10,
               runSpacing: 10,
               children: [
-                _InfoPill(label: job.location),
+                _InfoPill(label: job.category),
+                _InfoPill(label: job.readableLocation),
                 if (job.ratingFilter != null)
                   _InfoPill(
                     label:

@@ -187,7 +187,7 @@ class UserModel extends Equatable {
     }
 
     if (hasBookingLocation) {
-      return 'Lat ${latitude!.toStringAsFixed(5)}, Lng ${longitude!.toStringAsFixed(5)}';
+      return 'Location captured, address unavailable';
     }
 
     return '';

@@ -275,7 +275,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                             ),
                           ),
                           child: Text(
-                            'GPS saved: ${_latitude!.toStringAsFixed(5)}, ${_longitude!.toStringAsFixed(5)}',
+                            'GPS saved: ${_locationPreviewLabel()}',
                             style: TextStyle(
                               color: AppTheme.resolveOnColor(
                                 tokens.primarySoft,
@@ -494,9 +494,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
         if (result.isSuccess) {
           _latitude = result.latitude;
           _longitude = result.longitude;
-          if (result.address.trim().isNotEmpty) {
-            _addressController.text = result.address;
-          }
+          _addressController.text = result.address;
         }
       });
 
@@ -647,5 +645,14 @@ class _EditProfilePageState extends State<EditProfilePage> {
     }
 
     return user.displayName;
+  }
+
+  String _locationPreviewLabel() {
+    final address = _addressController.text.trim();
+    if (address.isNotEmpty) {
+      return address;
+    }
+
+    return 'Location captured, address unavailable';
   }
 }

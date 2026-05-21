@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class JobPostModel extends Equatable {
   const JobPostModel({
@@ -9,6 +10,7 @@ class JobPostModel extends Equatable {
     required this.description,
     required this.category,
     required this.location,
+    required this.status,
     required this.createdAt,
     this.ratingFilter,
   });
@@ -20,8 +22,18 @@ class JobPostModel extends Equatable {
   final String description;
   final String category;
   final String location;
+  final String status;
   final DateTime createdAt;
   final double? ratingFilter;
+
+  String get readableLocation {
+    final trimmed = location.trim();
+    if (trimmed.isEmpty || _looksLikeCoordinates(trimmed)) {
+      return 'Location captured, address unavailable';
+    }
+
+    return trimmed;
+  }
 
   factory JobPostModel.fromMap(Map<String, dynamic> map, String documentId) {
     return JobPostModel(
@@ -32,6 +44,7 @@ class JobPostModel extends Equatable {
       description: map['description'] as String? ?? 'No details provided.',
       category: map['category'] as String? ?? 'General',
       location: map['location'] as String? ?? '',
+      status: map['status'] as String? ?? 'open',
       createdAt:
           _readDateTime(map['createdAt']) ??
           DateTime.fromMillisecondsSinceEpoch(0),
@@ -48,15 +61,15 @@ class JobPostModel extends Equatable {
       return value;
     }
 
-    final toDate = (value as dynamic).toDate;
-    if (toDate is Function) {
-      final result = toDate();
-      if (result is DateTime) {
-        return result;
-      }
+    if (value is Timestamp) {
+      return value.toDate();
     }
 
-    return null;
+    if (value is int) {
+      return DateTime.fromMillisecondsSinceEpoch(value);
+    }
+
+    return DateTime.tryParse(value.toString());
   }
 
   static double? _readNullableDouble(dynamic value) {
@@ -71,6 +84,15 @@ class JobPostModel extends Equatable {
     return double.tryParse(value.toString());
   }
 
+  static bool _looksLikeCoordinates(String value) {
+    final normalized = value.trim().toLowerCase();
+    if (normalized.startsWith('lat ') || normalized.startsWith('lat:')) {
+      return true;
+    }
+
+    return RegExp(r'^-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?$').hasMatch(normalized);
+  }
+
   @override
   List<Object?> get props => [
     jobId,
@@ -80,6 +102,7 @@ class JobPostModel extends Equatable {
     description,
     category,
     location,
+    status,
     createdAt,
     ratingFilter,
   ];

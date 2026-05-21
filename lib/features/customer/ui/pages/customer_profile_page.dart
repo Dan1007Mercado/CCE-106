@@ -110,12 +110,6 @@ class CustomerProfilePage extends StatelessWidget {
                 value: user.locationLabel,
                 emptyLabel: 'Capture your GPS location from Manage profile',
               ),
-              if (user.hasBookingLocation)
-                _ProfileRow(
-                  label: 'Coordinates',
-                  value:
-                      '${user.latitude!.toStringAsFixed(5)}, ${user.longitude!.toStringAsFixed(5)}',
-                ),
               _ProfileRow(label: 'Role', value: user.role.label),
             ],
           ),
@@ -132,28 +126,6 @@ class CustomerProfilePage extends StatelessWidget {
               _ProfileRow(
                 label: 'Location permission',
                 value: user.locationPermission.label,
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSizes.sectionGap),
-          _ProfileInfoCard(
-            title: 'Booking readiness',
-            children: [
-              Text(
-                user.isReadyForBooking
-                    ? 'Your profile is ready for fixed-price booking.'
-                    : 'Bookings stay disabled until your 09XXXXXXXXX mobile number and device GPS coordinates are saved.',
-                style: theme.textTheme.bodyLarge?.copyWith(
-                  color: secondaryText,
-                  height: 1.45,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Profile editing lives in Settings > Manage profile.',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: secondaryText,
-                ),
               ),
             ],
           ),
