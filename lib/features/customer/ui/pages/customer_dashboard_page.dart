@@ -1556,12 +1556,16 @@ class _ServiceFeedCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                CircleAvatar(
-                  backgroundColor: tokens.primarySoft,
-                  child: Icon(
-                    Icons.home_repair_service_rounded,
-                    color: AppTheme.resolveOnColor(tokens.primarySoft),
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: CircleAvatar(
+                    backgroundColor: tokens.primarySoft,
+                    child: Icon(
+                      Icons.home_repair_service_rounded,
+                      color: AppTheme.resolveOnColor(tokens.primarySoft),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -1570,7 +1574,18 @@ class _ServiceFeedCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
+                        service.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
                         service.providerName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w700,
                         ),
@@ -1578,6 +1593,8 @@ class _ServiceFeedCard extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         service.category,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.bodyMedium?.copyWith(
                           color: theme.textTheme.bodyMedium?.color?.withValues(
                             alpha: 0.74,
@@ -1590,14 +1607,7 @@ class _ServiceFeedCard extends StatelessWidget {
                 _InfoPill(label: '${service.rating.toStringAsFixed(1)} stars'),
               ],
             ),
-            const SizedBox(height: 16),
-            Text(
-              service.title,
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 14),
             Text(
               service.description,
               style: theme.textTheme.bodyLarge?.copyWith(

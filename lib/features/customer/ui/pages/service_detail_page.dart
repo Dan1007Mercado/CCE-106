@@ -16,6 +16,138 @@ class ServiceDetailPage extends StatefulWidget {
 }
 
 class _ServiceDetailPageState extends State<ServiceDetailPage> {
+  Future<void> _showTermsBeforeBooking(ServiceListingModel service) async {
+    final agreed = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (modalContext) {
+        var isAccepted = false;
+
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final theme = Theme.of(context);
+            final viewInsets = MediaQuery.viewInsetsOf(context);
+            final maxHeight = MediaQuery.sizeOf(context).height * 0.82;
+
+            return SafeArea(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  AppSizes.pagePadding,
+                  8,
+                  AppSizes.pagePadding,
+                  viewInsets.bottom + AppSizes.pagePadding,
+                ),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxHeight: maxHeight),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Terms and Conditions',
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Flexible(
+                        child: SingleChildScrollView(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Before booking this service, please confirm that you understand and agree to the booking terms.',
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: theme.textTheme.bodyMedium?.color
+                                      ?.withValues(alpha: 0.74),
+                                  height: 1.45,
+                                ),
+                              ),
+                              const SizedBox(height: 18),
+                              const _TermsItem(
+                                index: 1,
+                                text:
+                                    'The customer must provide a valid service address.',
+                              ),
+                              const _TermsItem(
+                                index: 2,
+                                text:
+                                    'The booking request will be sent to the selected provider.',
+                              ),
+                              const _TermsItem(
+                                index: 3,
+                                text:
+                                    'Payment will remain pending until the provider marks the service as completed.',
+                              ),
+                              const _TermsItem(
+                                index: 4,
+                                text:
+                                    'Cancelling an active booking may apply the existing cancellation fees.',
+                              ),
+                              const _TermsItem(
+                                index: 5,
+                                text:
+                                    'Misuse, fake bookings, or abusive behavior may lead to account restriction.',
+                              ),
+                              const SizedBox(height: 12),
+                              CheckboxListTile(
+                                value: isAccepted,
+                                onChanged: (value) {
+                                  setModalState(() {
+                                    isAccepted = value ?? false;
+                                  });
+                                },
+                                controlAffinity:
+                                    ListTileControlAffinity.leading,
+                                contentPadding: EdgeInsets.zero,
+                                title: const Text(
+                                  'I have read and agree to the Terms and Conditions.',
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () =>
+                                  Navigator.of(modalContext).pop(false),
+                              child: const Text('Cancel'),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: isAccepted
+                                  ? () => Navigator.of(modalContext).pop(true)
+                                  : null,
+                              child: const Text('Next'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    if (!mounted || agreed != true) {
+      return;
+    }
+
+    Navigator.of(context).pushNamed(AppRouter.bookingRoute, arguments: service);
+  }
+
   @override
   Widget build(BuildContext context) {
     final service = widget.service;
@@ -151,11 +283,7 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
           CustomButton(
             label: 'Book Service',
             icon: Icons.calendar_month_rounded,
-            onPressed: () {
-              Navigator.of(
-                context,
-              ).pushNamed(AppRouter.bookingRoute, arguments: service);
-            },
+            onPressed: () => _showTermsBeforeBooking(service),
           ),
         ],
       ),
@@ -186,18 +314,27 @@ class _ServiceBanner extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            Icons.home_repair_service_rounded,
-            size: 44,
-            color: Colors.white.withValues(alpha: 0.92),
-          ),
-          const SizedBox(height: 18),
-          Text(
-            service.title,
-            style: theme.textTheme.headlineMedium?.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.w800,
-            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.home_repair_service_rounded,
+                size: 44,
+                color: Colors.white.withValues(alpha: 0.92),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  service.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.headlineMedium?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 16),
           Wrap(
@@ -212,6 +349,39 @@ class _ServiceBanner extends StatelessWidget {
                     : '${service.rating.toStringAsFixed(1)} rating',
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TermsItem extends StatelessWidget {
+  const _TermsItem({required this.index, required this.text});
+
+  final int index;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '$index. ',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          Expanded(
+            child: Text(
+              text,
+              style: theme.textTheme.bodyMedium?.copyWith(height: 1.4),
+            ),
           ),
         ],
       ),
