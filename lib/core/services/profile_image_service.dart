@@ -2,11 +2,9 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 
 class ProfileImageService {
-  ProfileImageService({
-    FirebaseStorage? storage,
-    ImagePicker? imagePicker,
-  }) : _storage = storage ?? FirebaseStorage.instance,
-       _imagePicker = imagePicker ?? ImagePicker();
+  ProfileImageService({FirebaseStorage? storage, ImagePicker? imagePicker})
+    : _storage = storage ?? FirebaseStorage.instance,
+      _imagePicker = imagePicker ?? ImagePicker();
 
   final FirebaseStorage _storage;
   final ImagePicker _imagePicker;

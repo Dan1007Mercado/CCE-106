@@ -304,11 +304,10 @@ class _AuthGate extends StatelessWidget {
           switchInCurve: AppTheme.motionCurve,
           switchOutCurve: AppTheme.motionCurve,
           transitionBuilder: (child, animation) {
-            final offsetAnimation =
-                Tween<Offset>(
-                  begin: const Offset(0, 0.02),
-                  end: Offset.zero,
-                ).animate(animation);
+            final offsetAnimation = Tween<Offset>(
+              begin: const Offset(0, 0.02),
+              end: Offset.zero,
+            ).animate(animation);
 
             return FadeTransition(
               opacity: animation,

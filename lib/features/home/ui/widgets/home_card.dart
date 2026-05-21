@@ -33,7 +33,10 @@ class HomeCard extends StatelessWidget {
                 color: tokens.primarySoft,
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: Icon(icon, color: AppTheme.resolveOnColor(tokens.primarySoft)),
+              child: Icon(
+                icon,
+                color: AppTheme.resolveOnColor(tokens.primarySoft),
+              ),
             ),
             const SizedBox(height: 16),
             Text(
@@ -46,7 +49,9 @@ class HomeCard extends StatelessWidget {
             Text(
               description,
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.74),
+                color: theme.textTheme.bodyMedium?.color?.withValues(
+                  alpha: 0.74,
+                ),
                 height: 1.45,
               ),
             ),

@@ -109,7 +109,9 @@ class AuthService {
       }
 
       final tokenResult = await firebaseUser.getIdTokenResult();
-      final fallbackName = _fallbackNameFromDisplayName(firebaseUser.displayName);
+      final fallbackName = _fallbackNameFromDisplayName(
+        firebaseUser.displayName,
+      );
       final fallbackUser = UserModel(
         uid: firebaseUser.uid,
         email: firebaseUser.email ?? '',
@@ -166,7 +168,7 @@ class AuthService {
     final cleaned = displayName?.trim() ?? '';
     if (cleaned.isEmpty) {
       return const _FallbackNameParts(
-        firstName: 'HandyMarket',
+        firstName: 'Local Services',
         lastName: 'User',
       );
     }
@@ -184,10 +186,7 @@ class AuthService {
 }
 
 class _FallbackNameParts {
-  const _FallbackNameParts({
-    required this.firstName,
-    required this.lastName,
-  });
+  const _FallbackNameParts({required this.firstName, required this.lastName});
 
   final String firstName;
   final String lastName;

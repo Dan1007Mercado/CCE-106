@@ -152,7 +152,8 @@ class _SettingsPageState extends State<SettingsPage> {
                     subtitle:
                         'Push alerts stay off until notification permission is granted.',
                     status:
-                        _notificationsPermission ?? user.notificationsPermission,
+                        _notificationsPermission ??
+                        user.notificationsPermission,
                     isLoading: _isUpdatingNotifications,
                     onPressed: () => _requestNotificationsPermission(user),
                     onOpenSettings: _openDeviceSettings,
@@ -231,8 +232,8 @@ class _SettingsPageState extends State<SettingsPage> {
 
     try {
       final photos = await _permissionService.getPhotosPermissionStatus();
-      final notifications =
-          await _permissionService.getNotificationsPermissionStatus();
+      final notifications = await _permissionService
+          .getNotificationsPermissionStatus();
       final location = await _locationService.getPermissionStatus();
 
       if (!mounted) {
@@ -480,7 +481,8 @@ class _PermissionTile extends StatelessWidget {
     final theme = Theme.of(context);
     final statusBackground = switch (status) {
       UserPermissionStatus.granted => theme.tokens.successSoft,
-      UserPermissionStatus.permanentlyDenied => theme.colorScheme.errorContainer,
+      UserPermissionStatus.permanentlyDenied =>
+        theme.colorScheme.errorContainer,
       UserPermissionStatus.denied => theme.tokens.warningSoft,
       UserPermissionStatus.unknown => theme.tokens.subtleSurface,
     };

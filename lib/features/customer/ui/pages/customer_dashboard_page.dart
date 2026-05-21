@@ -34,19 +34,27 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
   static const List<double> _ratings = [3, 4, 4.5];
 
   final CustomerService _customerService = CustomerService();
+  final TextEditingController _searchController = TextEditingController();
   late final TabController _tabController;
 
   String _selectedCategory = 'All';
   double? _selectedRating;
+  String _searchQuery = '';
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _searchController.addListener(() {
+      setState(() {
+        _searchQuery = _searchController.text.trim().toLowerCase();
+      });
+    });
   }
 
   @override
   void dispose() {
+    _searchController.dispose();
     _tabController.dispose();
     super.dispose();
   }
@@ -95,19 +103,14 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
             const SizedBox(width: 12), // reduce slightly
             const Flexible(
               child: Text(
-                'HandyMarket',
+                'Local Services',
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(fontWeight: FontWeight.w700),
               ),
-            ),      
+            ),
           ],
         ),
         actions: [
-          _ActionIcon(
-            icon: Icons.search_rounded,
-            tooltip: 'Search',
-            onTap: () => _showComingSoon('Search'),
-          ),
           _ActionIcon(
             icon: Icons.notifications_none_rounded,
             tooltip: 'Notifications',
@@ -180,6 +183,8 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
                     category: _selectedCategory,
                     minRating: _selectedRating,
                   ),
+                  searchController: _searchController,
+                  searchQuery: _searchQuery,
                   selectedCategory: _selectedCategory,
                   selectedRating: _selectedRating,
                   onOpenFilters: _showServiceFilterSheet,
@@ -214,8 +219,7 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
                 AppSizes.pagePadding,
                 AppSizes.pagePadding,
                 AppSizes.pagePadding,
-                MediaQuery.of(context).viewInsets.bottom +
-                    AppSizes.pagePadding,
+                MediaQuery.of(context).viewInsets.bottom + AppSizes.pagePadding,
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -370,18 +374,16 @@ class _WelcomePanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final tokens = theme.tokens;
 
     return Container(
       padding: const EdgeInsets.all(AppSizes.cardPadding),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [tokens.pageGradientStart, theme.colorScheme.surface],
+          colors: [theme.colorScheme.primary, const Color(0xFF2563EB)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(AppSizes.radiusLg),
-        border: Border.all(color: theme.colorScheme.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -389,6 +391,7 @@ class _WelcomePanel extends StatelessWidget {
           Text(
             'Welcome back, ${user.firstName}',
             style: theme.textTheme.headlineSmall?.copyWith(
+              color: Colors.white,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -457,6 +460,8 @@ class _StatusBadge extends StatelessWidget {
 class _ServicesFeedSection extends StatelessWidget {
   const _ServicesFeedSection({
     required this.serviceStream,
+    required this.searchController,
+    required this.searchQuery,
     required this.selectedCategory,
     required this.selectedRating,
     required this.onOpenFilters,
@@ -464,6 +469,8 @@ class _ServicesFeedSection extends StatelessWidget {
   });
 
   final Stream<List<ServiceListingModel>> serviceStream;
+  final TextEditingController searchController;
+  final String searchQuery;
   final String selectedCategory;
   final double? selectedRating;
   final VoidCallback onOpenFilters;
@@ -479,6 +486,14 @@ class _ServicesFeedSection extends StatelessWidget {
         }
 
         final services = snapshot.data ?? const [];
+        final filteredServices = searchQuery.isEmpty
+            ? services
+            : services.where((service) {
+                final source =
+                    '${service.title} ${service.providerName} ${service.category} ${service.location}'
+                        .toLowerCase();
+                return source.contains(searchQuery);
+              }).toList();
 
         return ListView(
           padding: const EdgeInsets.fromLTRB(
@@ -489,13 +504,28 @@ class _ServicesFeedSection extends StatelessWidget {
           ),
           children: [
             _SectionHeader(
-              title: 'Service feed',
+              title: 'Find local services',
               description:
-                  'Provider listings only. Filters live behind the icon here.',
+                  'Search provider listings without mixing in job posts.',
               action: IconButton(
                 onPressed: onOpenFilters,
                 icon: const Icon(Icons.filter_list_rounded),
                 tooltip: 'Filter services',
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: searchController,
+              decoration: InputDecoration(
+                hintText: 'Search services, providers, category, or location',
+                prefixIcon: const Icon(Icons.search_rounded),
+                suffixIcon: searchController.text.isEmpty
+                    ? null
+                    : IconButton(
+                        tooltip: 'Clear search',
+                        onPressed: searchController.clear,
+                        icon: const Icon(Icons.close_rounded),
+                      ),
               ),
             ),
             const SizedBox(height: 12),
@@ -504,14 +534,14 @@ class _ServicesFeedSection extends StatelessWidget {
               selectedRating: selectedRating,
             ),
             const SizedBox(height: 18),
-            if (services.isEmpty)
+            if (filteredServices.isEmpty)
               const _EmptyFeedCard(
-                title: 'No services match these filters yet.',
+                title: 'No services match your search yet.',
                 description:
-                    'Try a different category or rating, or check back when more providers publish listings.',
+                    'Try a different keyword, category, or rating filter.',
               )
             else
-              for (final service in services) ...[
+              for (final service in filteredServices) ...[
                 _ServiceFeedCard(
                   service: service,
                   onOpenDetails: () => onOpenDetails(service),
@@ -551,8 +581,7 @@ class _JobsFeedSection extends StatelessWidget {
           children: [
             const _SectionHeader(
               title: 'Job feed',
-              description:
-                  'Customer job requests only.',
+              description: 'Customer job requests only.',
             ),
             const SizedBox(height: 18),
             if (jobs.isEmpty)
@@ -649,7 +678,9 @@ class _ActiveFiltersSummary extends StatelessWidget {
             ? 'Showing all service listings.'
             : 'Active filters: ${filters.join(' | ')}',
         style: TextStyle(
-          color: AppTheme.resolveOnColor(Theme.of(context).tokens.subtleSurface),
+          color: AppTheme.resolveOnColor(
+            Theme.of(context).tokens.subtleSurface,
+          ),
           fontWeight: FontWeight.w600,
         ),
       ),
@@ -658,10 +689,7 @@ class _ActiveFiltersSummary extends StatelessWidget {
 }
 
 class _EmptyFeedCard extends StatelessWidget {
-  const _EmptyFeedCard({
-    required this.title,
-    required this.description,
-  });
+  const _EmptyFeedCard({required this.title, required this.description});
 
   final String title;
   final String description;
@@ -769,7 +797,9 @@ class _ServiceFeedCard extends StatelessWidget {
             Text(
               service.description,
               style: theme.textTheme.bodyLarge?.copyWith(
-                color: theme.textTheme.bodyLarge?.color?.withValues(alpha: 0.74),
+                color: theme.textTheme.bodyLarge?.color?.withValues(
+                  alpha: 0.74,
+                ),
                 height: 1.5,
               ),
             ),
@@ -778,7 +808,9 @@ class _ServiceFeedCard extends StatelessWidget {
               spacing: 10,
               runSpacing: 10,
               children: [
-                _InfoPill(label: 'PHP ${service.price.toStringAsFixed(0)} fixed'),
+                _InfoPill(
+                  label: 'PHP ${service.price.toStringAsFixed(0)} fixed',
+                ),
                 if (service.location.trim().isNotEmpty)
                   _InfoPill(label: service.location),
               ],
@@ -861,7 +893,9 @@ class _JobFeedCard extends StatelessWidget {
             Text(
               job.description,
               style: theme.textTheme.bodyLarge?.copyWith(
-                color: theme.textTheme.bodyLarge?.color?.withValues(alpha: 0.74),
+                color: theme.textTheme.bodyLarge?.color?.withValues(
+                  alpha: 0.74,
+                ),
                 height: 1.5,
               ),
             ),

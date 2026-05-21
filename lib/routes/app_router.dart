@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 
 import '../core/theme/app_theme.dart';
+import '../features/admin/ui/pages/admin_dashboard_page.dart';
 import '../features/auth/ui/pages/forgot_password_page.dart';
 import '../features/auth/ui/pages/login_page.dart';
 import '../features/auth/ui/pages/register_page.dart';
 import '../features/customer/data/models/service_listing_model.dart';
+import '../features/customer/ui/pages/booking_page.dart';
 import '../features/customer/ui/pages/customer_profile_page.dart';
 import '../features/customer/ui/pages/edit_profile_page.dart';
 import '../features/customer/ui/pages/post_job_page.dart';
 import '../features/customer/ui/pages/service_detail_page.dart';
 import '../features/customer/ui/pages/settings_page.dart';
+import '../features/provider/ui/pages/provider_dashboard_page.dart';
 
 class AppRouter {
   static const String registerRoute = '/register';
@@ -18,7 +21,10 @@ class AppRouter {
   static const String editProfileRoute = '/customer/profile/edit';
   static const String postJobRoute = '/customer/jobs/create';
   static const String serviceDetailRoute = '/customer/service-detail';
+  static const String bookingRoute = '/customer/booking';
   static const String settingsRoute = '/customer/settings';
+  static const String providerDashboardRoute = '/provider/dashboard';
+  static const String adminDashboardRoute = '/admin/dashboard';
 
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
     switch (settings.name) {
@@ -55,9 +61,27 @@ class AppRouter {
           ),
           settings: settings,
         );
+      case bookingRoute:
+        final service = settings.arguments;
+        return _AppPageRoute(
+          builder: (_) => BookingPage(
+            service: service is ServiceListingModel ? service : null,
+          ),
+          settings: settings,
+        );
       case settingsRoute:
         return _AppPageRoute(
           builder: (_) => const SettingsPage(),
+          settings: settings,
+        );
+      case providerDashboardRoute:
+        return _AppPageRoute(
+          builder: (_) => const ProviderDashboardPage(),
+          settings: settings,
+        );
+      case adminDashboardRoute:
+        return _AppPageRoute(
+          builder: (_) => const AdminDashboardPage(),
           settings: settings,
         );
       default:

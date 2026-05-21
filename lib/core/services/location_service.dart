@@ -3,7 +3,12 @@ import 'package:geolocator/geolocator.dart';
 
 import '../../features/auth/data/models/user_model.dart';
 
-enum LocationCaptureState { success, servicesDisabled, denied, permanentlyDenied }
+enum LocationCaptureState {
+  success,
+  servicesDisabled,
+  denied,
+  permanentlyDenied,
+}
 
 class LocationCaptureResult {
   const LocationCaptureResult({
@@ -42,7 +47,8 @@ class LocationService {
       return const LocationCaptureResult(
         state: LocationCaptureState.servicesDisabled,
         permissionStatus: UserPermissionStatus.denied,
-        message: 'Turn on device location services to capture your booking address.',
+        message:
+            'Turn on device location services to capture your booking address.',
       );
     }
 
@@ -56,7 +62,8 @@ class LocationService {
       return LocationCaptureResult(
         state: LocationCaptureState.denied,
         permissionStatus: permissionStatus,
-        message: 'Location permission was denied. You can add a fallback address, but booking still needs GPS coordinates.',
+        message:
+            'Location permission was denied. You can add a fallback address, but booking still needs GPS coordinates.',
       );
     }
 
@@ -64,7 +71,8 @@ class LocationService {
       return LocationCaptureResult(
         state: LocationCaptureState.permanentlyDenied,
         permissionStatus: permissionStatus,
-        message: 'Location permission is blocked. Open device settings to enable GPS-based booking.',
+        message:
+            'Location permission is blocked. Open device settings to enable GPS-based booking.',
       );
     }
 
@@ -111,16 +119,17 @@ class LocationService {
       }
 
       final placemark = placemarks.first;
-      final parts = [
-        placemark.street,
-        placemark.subLocality,
-        placemark.locality,
-        placemark.administrativeArea,
-        placemark.country,
-      ]
-          .map((part) => part?.trim() ?? '')
-          .where((part) => part.isNotEmpty)
-          .toList();
+      final parts =
+          [
+                placemark.street,
+                placemark.subLocality,
+                placemark.locality,
+                placemark.administrativeArea,
+                placemark.country,
+              ]
+              .map((part) => part?.trim() ?? '')
+              .where((part) => part.isNotEmpty)
+              .toList();
 
       return parts.join(', ');
     } catch (_) {

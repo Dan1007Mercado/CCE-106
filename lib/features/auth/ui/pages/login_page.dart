@@ -75,7 +75,7 @@ class _LoginPageState extends State<LoginPage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Text('New to HandyMarket?'),
+                const Text('New to Local Services?'),
                 TextButton(
                   onPressed: state.isSubmitting
                       ? null

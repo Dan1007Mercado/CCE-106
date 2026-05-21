@@ -21,7 +21,9 @@ class AuthForm extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final tokens = theme.tokens;
-    final mutedText = theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.74);
+    final mutedText = theme.textTheme.bodyMedium?.color?.withValues(
+      alpha: 0.74,
+    );
 
     return Scaffold(
       body: AnimatedContainer(

@@ -130,7 +130,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  _photosPermission == UserPermissionStatus.granted
+                                  _photosPermission ==
+                                          UserPermissionStatus.granted
                                       ? 'Gallery access is ready for upload.'
                                       : 'Photo upload is blocked until gallery access is granted.',
                                   style: theme.textTheme.bodyMedium?.copyWith(
@@ -156,7 +157,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
                                                 strokeWidth: 2,
                                               ),
                                             )
-                                          : const Icon(Icons.photo_library_outlined),
+                                          : const Icon(
+                                              Icons.photo_library_outlined,
+                                            ),
                                       label: const Text('Upload photo'),
                                     ),
                                     if (_photosPermission ==
@@ -274,7 +277,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
                           child: Text(
                             'GPS saved: ${_latitude!.toStringAsFixed(5)}, ${_longitude!.toStringAsFixed(5)}',
                             style: TextStyle(
-                              color: AppTheme.resolveOnColor(tokens.primarySoft),
+                              color: AppTheme.resolveOnColor(
+                                tokens.primarySoft,
+                              ),
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -495,11 +500,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
         }
       });
 
-      Helpers.showSnackBar(
-        context,
-        result.message,
-        isError: !result.isSuccess,
-      );
+      Helpers.showSnackBar(context, result.message, isError: !result.isSuccess);
     } catch (error) {
       if (!mounted) {
         return;

@@ -102,7 +102,10 @@ class CustomerService {
       );
     }
 
-    await _bookingsCollection.add({
+    final bookingRef = _bookingsCollection.doc();
+
+    await bookingRef.set({
+      'bookingId': bookingRef.id,
       'customerId': customer.uid,
       'customerName': customer.displayName,
       'customerPhone': customer.phone,
@@ -111,10 +114,16 @@ class CustomerService {
       'customerLongitude': customer.longitude,
       'serviceId': service.serviceId,
       'providerId': service.providerId,
+      'serviceTitle': service.title,
       'category': service.category,
       'price': service.price,
+      'selectedDate': null,
+      'selectedTimeSlot': '',
+      'notes': '',
       'status': 'pending',
+      'paymentStatus': 'unpaid',
       'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
     });
   }
 

@@ -3,13 +3,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/constants/app_sizes.dart';
 import '../../../../core/theme/app_theme.dart';
-import '../../../../core/utils/helpers.dart';
 import '../../../../core/widgets/custom_button.dart';
 import '../../../../routes/app_router.dart';
 import '../../../auth/bloc/auth_bloc.dart';
-import '../../../auth/data/models/user_model.dart';
 import '../../data/models/service_listing_model.dart';
-import '../../data/services/customer_service.dart';
 
 class ServiceDetailPage extends StatefulWidget {
   const ServiceDetailPage({required this.service, super.key});
@@ -21,9 +18,6 @@ class ServiceDetailPage extends StatefulWidget {
 }
 
 class _ServiceDetailPageState extends State<ServiceDetailPage> {
-  final CustomerService _customerService = CustomerService();
-  bool _isBooking = false;
-
   @override
   Widget build(BuildContext context) {
     final service = widget.service;
@@ -40,8 +34,15 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
     return Scaffold(
       appBar: AppBar(title: const Text('Service details')),
       body: ListView(
-        padding: const EdgeInsets.all(AppSizes.pagePadding),
+        padding: const EdgeInsets.fromLTRB(
+          AppSizes.pagePadding,
+          0,
+          AppSizes.pagePadding,
+          AppSizes.pagePadding,
+        ),
         children: [
+          _ServiceBanner(service: service),
+          const SizedBox(height: AppSizes.sectionGap),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(AppSizes.cardPadding),
@@ -49,6 +50,7 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       CircleAvatar(
                         radius: 28,
@@ -65,53 +67,47 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
                           children: [
                             Text(
                               service.providerName,
-                              style: Theme.of(context).textTheme.titleLarge
-                                  ?.copyWith(fontWeight: FontWeight.w700),
+                              style: theme.textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.w800,
+                              ),
                             ),
-                            const SizedBox(height: 4),
+                            const SizedBox(height: 6),
                             Text(
-                              service.category,
-                              style: theme.textTheme.bodyLarge?.copyWith(
-                                color: theme.textTheme.bodyLarge?.color
-                                    ?.withValues(alpha: 0.74),
+                              service.location.trim().isEmpty
+                                  ? 'Provider location not listed'
+                                  : service.location,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: theme.textTheme.bodyMedium?.color
+                                    ?.withValues(alpha: 0.72),
                               ),
                             ),
                           ],
                         ),
                       ),
+                      _InfoPill(
+                        icon: Icons.star_rounded,
+                        label: service.rating == 0
+                            ? 'New'
+                            : service.rating.toStringAsFixed(1),
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 22),
                   Text(
-                    service.title,
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
+                    'Description',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   Text(
                     service.description,
                     style: theme.textTheme.bodyLarge?.copyWith(
                       color: theme.textTheme.bodyLarge?.color?.withValues(
-                        alpha: 0.74,
+                        alpha: 0.76,
                       ),
-                      height: 1.5,
+                      height: 1.55,
                     ),
-                  ),
-                  const SizedBox(height: 20),
-                  _DetailRow(
-                    label: 'Rating',
-                    value: '${service.rating.toStringAsFixed(1)} stars',
-                  ),
-                  _DetailRow(
-                    label: 'Fixed price',
-                    value: 'PHP ${service.price.toStringAsFixed(0)}',
-                  ),
-                  _DetailRow(
-                    label: 'Location',
-                    value: service.location.trim().isEmpty
-                        ? 'Provider location not listed'
-                        : service.location,
                   ),
                 ],
               ),
@@ -125,24 +121,31 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Booking rules',
+                    'Available slots',
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'This uses fixed pricing. Once you tap Book, the booking is created immediately with no bidding or negotiation step.',
+                  const SizedBox(height: 14),
+                  const Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      _SlotPill(label: 'Tomorrow morning'),
+                      _SlotPill(label: 'Weekday afternoon'),
+                      _SlotPill(label: 'Weekend schedule'),
+                    ],
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 18),
                   Text(
                     user != null && user.isReadyForBooking
-                        ? 'Your customer profile is ready for booking.'
-                        : 'Add your 09XXXXXXXXX mobile number and capture your GPS location in Profile before booking.',
-                    style: TextStyle(
+                        ? 'Your customer profile has the phone number and GPS location required for booking.'
+                        : 'Complete your 09XXXXXXXXX mobile number and GPS location before confirming a booking.',
+                    style: theme.textTheme.bodyMedium?.copyWith(
                       color: theme.textTheme.bodyMedium?.color?.withValues(
-                        alpha: 0.74,
+                        alpha: 0.72,
                       ),
+                      height: 1.45,
                     ),
                   ),
                 ],
@@ -151,12 +154,13 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
           ),
           const SizedBox(height: AppSizes.sectionGap),
           CustomButton(
-            label: 'Book service',
+            label: 'Book Service',
             icon: Icons.calendar_month_rounded,
-            isLoading: _isBooking,
-            onPressed: user == null || !user.isReadyForBooking
-                ? null
-                : () => _book(user, service),
+            onPressed: () {
+              Navigator.of(
+                context,
+              ).pushNamed(AppRouter.bookingRoute, arguments: service);
+            },
           ),
           if (user != null && !user.isReadyForBooking) ...[
             const SizedBox(height: 12),
@@ -172,72 +176,143 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
       ),
     );
   }
-
-  Future<void> _book(UserModel user, ServiceListingModel service) async {
-    setState(() {
-      _isBooking = true;
-    });
-
-    try {
-      await _customerService.createBooking(customer: user, service: service);
-
-      if (!mounted) {
-        return;
-      }
-
-      Helpers.showSnackBar(context, 'Successful');
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      Helpers.showSnackBar(
-        context,
-        error.toString().replaceFirst('Exception: ', ''),
-        isError: true,
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isBooking = false;
-        });
-      }
-    }
-  }
 }
 
-class _DetailRow extends StatelessWidget {
-  const _DetailRow({required this.label, required this.value});
+class _ServiceBanner extends StatelessWidget {
+  const _ServiceBanner({required this.service});
 
-  final String label;
-  final String value;
+  final ServiceListingModel service;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
+    final theme = Theme.of(context);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSizes.cardPadding),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [theme.colorScheme.primary, const Color(0xFF2563EB)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(AppSizes.radiusLg),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Text(
-              label,
-              style: Theme.of(
-                context,
-              ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
+          Icon(
+            Icons.home_repair_service_rounded,
+            size: 44,
+            color: Colors.white.withValues(alpha: 0.92),
+          ),
+          const SizedBox(height: 18),
+          Text(
+            service.title,
+            style: theme.textTheme.headlineMedium?.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
             ),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              value,
-              textAlign: TextAlign.right,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: Theme.of(
-                  context,
-                ).textTheme.bodyLarge?.color?.withValues(alpha: 0.74),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _HeroPill(label: service.category),
+              _HeroPill(label: 'PHP ${service.price.toStringAsFixed(0)}'),
+              _HeroPill(
+                label: service.rating == 0
+                    ? 'New provider'
+                    : '${service.rating.toStringAsFixed(1)} rating',
               ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeroPill extends StatelessWidget {
+  const _HeroPill({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+class _InfoPill extends StatelessWidget {
+  const _InfoPill({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final background = Theme.of(context).tokens.subtleSurface;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: AppTheme.resolveOnColor(background)),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              color: AppTheme.resolveOnColor(background),
+              fontWeight: FontWeight.w700,
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _SlotPill extends StatelessWidget {
+  const _SlotPill({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final background = Theme.of(context).tokens.primarySoft;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: AppTheme.resolveOnColor(background),
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }

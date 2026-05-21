@@ -73,7 +73,9 @@ class CustomerProfilePage extends StatelessWidget {
                   const SizedBox(height: 18),
                   OutlinedButton.icon(
                     onPressed: () {
-                      Navigator.of(context).pushNamed(AppRouter.editProfileRoute);
+                      Navigator.of(
+                        context,
+                      ).pushNamed(AppRouter.editProfileRoute);
                     },
                     icon: const Icon(Icons.tune_rounded),
                     label: const Text('Edit profile'),
@@ -122,10 +124,7 @@ class CustomerProfilePage extends StatelessWidget {
             title: 'System preferences',
             children: [
               _ProfileRow(label: 'Theme', value: user.themeMode.label),
-              _ProfileRow(
-                label: 'Photos',
-                value: user.photosPermission.label,
-              ),
+              _ProfileRow(label: 'Photos', value: user.photosPermission.label),
               _ProfileRow(
                 label: 'Notifications',
                 value: user.notificationsPermission.label,

@@ -14,7 +14,7 @@ enum AppUserRole {
 
   String get label => switch (this) {
     AppUserRole.admin => 'Admin',
-    AppUserRole.service => 'Services',
+    AppUserRole.service => 'Service Provider',
     AppUserRole.customer => 'Customer',
   };
 
@@ -163,16 +163,21 @@ class UserModel extends Equatable {
   final DateTime? profileUpdatedAt;
 
   String get displayName {
-    final parts = [firstName, lastName, suffix]
-        .map((value) => value.trim())
-        .where((value) => value.isNotEmpty);
+    final parts = [
+      firstName,
+      lastName,
+      suffix,
+    ].map((value) => value.trim()).where((value) => value.isNotEmpty);
     return parts.join(' ').trim();
   }
 
   String get legalName {
-    final parts = [firstName, middleName, lastName, suffix]
-        .map((value) => value.trim())
-        .where((value) => value.isNotEmpty);
+    final parts = [
+      firstName,
+      middleName,
+      lastName,
+      suffix,
+    ].map((value) => value.trim()).where((value) => value.isNotEmpty);
     return parts.join(' ').trim();
   }
 
@@ -349,10 +354,7 @@ class UserModel extends Equatable {
 }
 
 class _LegacyNameParts {
-  const _LegacyNameParts({
-    required this.firstName,
-    required this.lastName,
-  });
+  const _LegacyNameParts({required this.firstName, required this.lastName});
 
   final String firstName;
   final String lastName;

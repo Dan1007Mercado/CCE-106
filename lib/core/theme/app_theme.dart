@@ -37,9 +37,7 @@ class AppTheme {
     final surfaceContainerColor = isDark
         ? const Color(0xFF1C2B35)
         : const Color(0xFFF9F6F1);
-    final borderColor = isDark
-        ? const Color(0xFF33505D)
-        : AppColors.border;
+    final borderColor = isDark ? const Color(0xFF33505D) : AppColors.border;
     final avatarBackground = isDark
         ? const Color(0xFF3B82F6)
         : const Color(0xFF2563EB);
@@ -203,16 +201,18 @@ class AppTheme {
         side: BorderSide(color: borderColor),
         labelStyle: TextStyle(color: resolveOnColor(tokens.subtleSurface)),
         secondaryLabelStyle: TextStyle(color: colorScheme.onPrimary),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(999),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
-        backgroundColor: isDark ? const Color(0xFF20323B) : AppColors.textPrimary,
-        contentTextStyle: TextStyle(color: resolveOnColor(
-          isDark ? const Color(0xFF20323B) : AppColors.textPrimary,
-        )),
+        backgroundColor: isDark
+            ? const Color(0xFF20323B)
+            : AppColors.textPrimary,
+        contentTextStyle: TextStyle(
+          color: resolveOnColor(
+            isDark ? const Color(0xFF20323B) : AppColors.textPrimary,
+          ),
+        ),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppSizes.radiusMd),
         ),
@@ -234,9 +234,7 @@ class AppTheme {
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         backgroundColor: colorScheme.primary,
         foregroundColor: colorScheme.onPrimary,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       ),
       dividerColor: borderColor,
       dividerTheme: DividerThemeData(color: borderColor, thickness: 1),
@@ -247,10 +245,9 @@ class AppTheme {
         iconColor: textSecondary,
         textColor: textPrimary,
       ),
-      textTheme: ThemeData(brightness: brightness).textTheme.apply(
-        bodyColor: textPrimary,
-        displayColor: textPrimary,
-      ),
+      textTheme: ThemeData(
+        brightness: brightness,
+      ).textTheme.apply(bodyColor: textPrimary, displayColor: textPrimary),
     );
   }
 
@@ -319,14 +316,22 @@ class AppThemeTokens extends ThemeExtension<AppThemeTokens> {
     }
 
     return AppThemeTokens(
-      pageGradientStart: Color.lerp(pageGradientStart, other.pageGradientStart, t)!,
+      pageGradientStart: Color.lerp(
+        pageGradientStart,
+        other.pageGradientStart,
+        t,
+      )!,
       pageGradientEnd: Color.lerp(pageGradientEnd, other.pageGradientEnd, t)!,
       primarySoft: Color.lerp(primarySoft, other.primarySoft, t)!,
       accentSoft: Color.lerp(accentSoft, other.accentSoft, t)!,
       successSoft: Color.lerp(successSoft, other.successSoft, t)!,
       warningSoft: Color.lerp(warningSoft, other.warningSoft, t)!,
       subtleSurface: Color.lerp(subtleSurface, other.subtleSurface, t)!,
-      avatarBackground: Color.lerp(avatarBackground, other.avatarBackground, t)!,
+      avatarBackground: Color.lerp(
+        avatarBackground,
+        other.avatarBackground,
+        t,
+      )!,
     );
   }
 }
