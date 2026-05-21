@@ -247,8 +247,6 @@ class _BookingPageState extends State<BookingPage> {
                         hintText:
                             'House No. optional, street, barangay, city, region',
                         prefixIcon: Icons.location_on_outlined,
-                        minLines: 1,
-                        maxLines: 3,
                         validator: _addressValidator,
                       ),
                       const SizedBox(height: AppSizes.fieldGap),
@@ -258,7 +256,8 @@ class _BookingPageState extends State<BookingPage> {
                         hintText: 'Optional instructions',
                         prefixIcon: Icons.notes_rounded,
                         minLines: 1,
-                        maxLines: 4,
+                        maxLines: 3,
+                        alignPrefixIconToTop: true,
                       ),
                     ],
                   ),
