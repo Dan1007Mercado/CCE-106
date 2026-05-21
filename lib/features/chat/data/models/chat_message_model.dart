@@ -4,14 +4,22 @@ class ChatMessageModel extends Equatable {
   const ChatMessageModel({
     required this.messageId,
     required this.senderId,
+    required this.senderRole,
+    required this.receiverId,
     required this.text,
+    required this.type,
+    required this.isRead,
     required this.createdAt,
     this.readBy = const [],
   });
 
   final String messageId;
   final String senderId;
+  final String senderRole;
+  final String receiverId;
   final String text;
+  final String type;
+  final bool isRead;
   final DateTime createdAt;
   final List<String> readBy;
 
@@ -22,7 +30,11 @@ class ChatMessageModel extends Equatable {
     return ChatMessageModel(
       messageId: documentId,
       senderId: map['senderId'] as String? ?? '',
-      text: map['text'] as String? ?? '',
+      senderRole: map['senderRole'] as String? ?? '',
+      receiverId: map['receiverId'] as String? ?? '',
+      text: map['message'] as String? ?? map['text'] as String? ?? '',
+      type: map['type'] as String? ?? 'text',
+      isRead: map['isRead'] as bool? ?? false,
       createdAt:
           _readDateTime(map['createdAt']) ??
           DateTime.fromMillisecondsSinceEpoch(0),
@@ -53,5 +65,15 @@ class ChatMessageModel extends Equatable {
   }
 
   @override
-  List<Object?> get props => [messageId, senderId, text, createdAt, readBy];
+  List<Object?> get props => [
+    messageId,
+    senderId,
+    senderRole,
+    receiverId,
+    text,
+    type,
+    isRead,
+    createdAt,
+    readBy,
+  ];
 }

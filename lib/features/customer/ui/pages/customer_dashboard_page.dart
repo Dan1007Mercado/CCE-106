@@ -1017,6 +1017,8 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
   }
 
   Future<void> _openBookingChat(ProviderBookingModel booking) async {
+    final currentUserId = context.read<AuthBloc>().state.user?.uid ?? '';
+
     try {
       await _chatService.ensureBookingChat(
         bookingId: booking.bookingId,
@@ -1024,6 +1026,7 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
         providerId: booking.providerId,
         customerName: booking.customerName,
         providerName: booking.providerName,
+        currentUserId: currentUserId,
       );
 
       if (!mounted) {
@@ -1815,8 +1818,17 @@ class _CustomerBookingCard extends StatelessWidget {
                 ),
               ),
             ],
+            const SizedBox(height: 18),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => _showBookingDetails(context),
+                icon: const Icon(Icons.receipt_long_outlined),
+                label: const Text('View booking details'),
+              ),
+            ),
             if (!booking.isCancelled) ...[
-              const SizedBox(height: 18),
+              const SizedBox(height: 10),
               Row(
                 children: [
                   Expanded(
@@ -1855,6 +1867,243 @@ class _CustomerBookingCard extends StatelessWidget {
               ],
             ],
           ],
+        ),
+      ),
+    );
+  }
+
+  void _showBookingDetails(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      showDragHandle: false,
+      builder: (sheetContext) {
+        return _CustomerBookingDetailsSheet(
+          booking: booking,
+          onCancel: onCancel,
+          onCallProvider: onCallProvider,
+          onOpenChat: onOpenChat,
+        );
+      },
+    );
+  }
+}
+
+class _CustomerBookingDetailsSheet extends StatelessWidget {
+  const _CustomerBookingDetailsSheet({
+    required this.booking,
+    required this.onCancel,
+    required this.onCallProvider,
+    required this.onOpenChat,
+  });
+
+  final ProviderBookingModel booking;
+  final VoidCallback onCancel;
+  final VoidCallback onCallProvider;
+  final VoidCallback onOpenChat;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = theme.tokens;
+
+    void closeThen(VoidCallback action) {
+      Navigator.of(context).pop();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        action();
+      });
+    }
+
+    return SafeArea(
+      child: Align(
+        alignment: Alignment.bottomCenter,
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 640),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.18),
+                blurRadius: 32,
+                offset: const Offset(0, -10),
+              ),
+            ],
+          ),
+          child: SingleChildScrollView(
+            padding: EdgeInsets.fromLTRB(
+              AppSizes.pagePadding,
+              14,
+              AppSizes.pagePadding,
+              MediaQuery.of(context).viewInsets.bottom + AppSizes.pagePadding,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    IconButton(
+                      tooltip: 'Back',
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.arrow_back_rounded),
+                      style: IconButton.styleFrom(
+                        backgroundColor: tokens.primarySoft,
+                        foregroundColor: theme.colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            booking.serviceTitle,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              height: 1.1,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            booking.providerName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: theme.textTheme.bodyMedium?.color
+                                  ?.withValues(alpha: 0.68),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    _BookingStatusPill(status: booking.status),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: tokens.subtleSurface,
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(
+                      color: theme.colorScheme.outlineVariant.withValues(
+                        alpha: 0.55,
+                      ),
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      _JobDetailRow(
+                        icon: Icons.calendar_today_outlined,
+                        label: 'Date',
+                        value: booking.selectedDate == null
+                            ? 'Date not set'
+                            : _formatDate(booking.selectedDate!),
+                      ),
+                      _JobDetailRow(
+                        icon: Icons.schedule_rounded,
+                        label: 'Time',
+                        value: booking.selectedTimeSlot.trim().isEmpty
+                            ? 'Slot not set'
+                            : booking.selectedTimeSlot,
+                      ),
+                      _JobDetailRow(
+                        icon: Icons.account_balance_wallet_outlined,
+                        label: 'Payment',
+                        value: _formatPaymentStatus(booking.paymentStatus),
+                      ),
+                      _JobDetailRow(
+                        icon: Icons.payments_outlined,
+                        label: 'Total',
+                        value: _formatCurrency(booking.totalAmount),
+                      ),
+                      _JobDetailRow(
+                        icon: Icons.location_on_outlined,
+                        label: 'Service address',
+                        value: booking.serviceAddress.trim().isEmpty
+                            ? 'Address not listed'
+                            : booking.serviceAddress.trim(),
+                        isLast: booking.notes.trim().isEmpty,
+                      ),
+                      if (booking.notes.trim().isNotEmpty)
+                        _JobDetailRow(
+                          icon: Icons.notes_rounded,
+                          label: 'Notes',
+                          value: booking.notes.trim(),
+                          isLast: true,
+                        ),
+                    ],
+                  ),
+                ),
+                if (booking.isCancelled &&
+                    (booking.providerCancellationFee > 0 ||
+                        booking.platformCancellationFee > 0)) ...[
+                  const SizedBox(height: 14),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.error.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(AppSizes.radiusMd),
+                      border: Border.all(
+                        color: theme.colorScheme.error.withValues(alpha: 0.16),
+                      ),
+                    ),
+                    child: Text(
+                      'Cancellation fees: provider ${_formatCurrency(booking.providerCancellationFee)}, platform ${_formatCurrency(booking.platformCancellationFee)}.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.error,
+                        fontWeight: FontWeight.w700,
+                        height: 1.35,
+                      ),
+                    ),
+                  ),
+                ],
+                if (!booking.isCancelled) ...[
+                  const SizedBox(height: AppSizes.sectionGap),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => closeThen(onCallProvider),
+                          icon: const Icon(Icons.call_outlined),
+                          label: const Text('Call'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton.icon(
+                          onPressed: () => closeThen(onOpenChat),
+                          icon: const Icon(Icons.chat_bubble_outline_rounded),
+                          label: const Text('Chat'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (booking.canCustomerCancel) ...[
+                    const SizedBox(height: 10),
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: theme.colorScheme.error,
+                        side: BorderSide(
+                          color: theme.colorScheme.error.withValues(
+                            alpha: 0.45,
+                          ),
+                        ),
+                      ),
+                      onPressed: () => closeThen(onCancel),
+                      icon: const Icon(Icons.cancel_outlined),
+                      label: const Text('Cancel booking'),
+                    ),
+                  ],
+                ],
+              ],
+            ),
+          ),
         ),
       ),
     );

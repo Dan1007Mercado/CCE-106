@@ -28,6 +28,14 @@ class ProviderDashboardPage extends StatefulWidget {
 }
 
 class _ProviderDashboardPageState extends State<ProviderDashboardPage> {
+  static const List<String> _serviceCategories = [
+    'Plumbing',
+    'Electrician',
+    'Cleaning',
+    'Carpentry',
+    'Masonry',
+  ];
+
   final ProviderService _providerService = ProviderService();
   final CustomerService _customerService = CustomerService();
   final ChatService _chatService = ChatService();
@@ -221,6 +229,8 @@ class _ProviderDashboardPageState extends State<ProviderDashboardPage> {
   }
 
   Future<void> _openBookingChat(ProviderBookingModel booking) async {
+    final currentUserId = context.read<AuthBloc>().state.user?.uid ?? '';
+
     try {
       await _chatService.ensureBookingChat(
         bookingId: booking.bookingId,
@@ -228,6 +238,7 @@ class _ProviderDashboardPageState extends State<ProviderDashboardPage> {
         providerId: booking.providerId,
         customerName: booking.customerName,
         providerName: booking.providerName,
+        currentUserId: currentUserId,
       );
 
       if (!mounted) {
@@ -263,7 +274,7 @@ class _ProviderDashboardPageState extends State<ProviderDashboardPage> {
     final descriptionController = TextEditingController();
     final locationController = TextEditingController(text: provider.address);
     final priceController = TextEditingController();
-    var selectedCategory = 'Plumbing';
+    var selectedCategory = _serviceCategories.first;
     var isSaving = false;
 
     try {
@@ -292,6 +303,7 @@ class _ProviderDashboardPageState extends State<ProviderDashboardPage> {
                   isSaving = true;
                 });
 
+                var shouldResetSaving = true;
                 try {
                   await _providerService.addServiceListing(
                     provider: provider,
@@ -306,6 +318,7 @@ class _ProviderDashboardPageState extends State<ProviderDashboardPage> {
                     return;
                   }
 
+                  shouldResetSaving = false;
                   Navigator.of(sheetContext).pop();
                   Helpers.showSnackBar(context, 'Service listing saved.');
                 } catch (error) {
@@ -319,7 +332,7 @@ class _ProviderDashboardPageState extends State<ProviderDashboardPage> {
                     isError: true,
                   );
                 } finally {
-                  if (sheetContext.mounted) {
+                  if (shouldResetSaving && sheetContext.mounted) {
                     setSheetState(() {
                       isSaving = false;
                     });
@@ -362,28 +375,14 @@ class _ProviderDashboardPageState extends State<ProviderDashboardPage> {
                             labelText: 'Category',
                             prefixIcon: Icon(Icons.category_outlined),
                           ),
-                          items: const [
-                            DropdownMenuItem(
-                              value: 'Plumbing',
-                              child: Text('Plumbing'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'Electrician',
-                              child: Text('Electrician'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'Cleaning',
-                              child: Text('Cleaning'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'Carpentry',
-                              child: Text('Carpentry'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'Masonry',
-                              child: Text('Masonry'),
-                            ),
-                          ],
+                          items: _serviceCategories
+                              .map(
+                                (category) => DropdownMenuItem(
+                                  value: category,
+                                  child: Text(category),
+                                ),
+                              )
+                              .toList(),
                           onChanged: isSaving
                               ? null
                               : (value) {
@@ -467,6 +466,7 @@ class _ProviderDashboardPageState extends State<ProviderDashboardPage> {
                   isSaving = true;
                 });
 
+                var shouldResetSaving = true;
                 try {
                   await _providerService.addAvailabilitySlot(
                     providerId: provider.uid,
@@ -478,6 +478,7 @@ class _ProviderDashboardPageState extends State<ProviderDashboardPage> {
                     return;
                   }
 
+                  shouldResetSaving = false;
                   Navigator.of(sheetContext).pop();
                   Helpers.showSnackBar(context, 'Availability slot saved.');
                 } catch (error) {
@@ -491,7 +492,7 @@ class _ProviderDashboardPageState extends State<ProviderDashboardPage> {
                     isError: true,
                   );
                 } finally {
-                  if (sheetContext.mounted) {
+                  if (shouldResetSaving && sheetContext.mounted) {
                     setSheetState(() {
                       isSaving = false;
                     });
@@ -692,6 +693,18 @@ class _ProviderDashboardContent extends StatelessWidget {
                   _JobsSection(
                     title: 'Upcoming jobs',
                     bookings: upcoming,
+                    emptyTitle: 'No upcoming jobs',
+                    emptyDescription: 'Accepted bookings will be tracked here.',
+                    onMarkDone: onMarkBookingDone,
+                    onOpenChat: onOpenChat,
+                  ),
+                  const SizedBox(height: AppSizes.sectionGap),
+                  _JobsSection(
+                    title: 'Completed jobs',
+                    bookings: completed,
+                    emptyTitle: 'No completed jobs yet',
+                    emptyDescription:
+                        'Finished bookings will remain available here.',
                     onMarkDone: onMarkBookingDone,
                     onOpenChat: onOpenChat,
                   ),
@@ -1265,12 +1278,16 @@ class _JobsSection extends StatelessWidget {
   const _JobsSection({
     required this.title,
     required this.bookings,
+    required this.emptyTitle,
+    required this.emptyDescription,
     required this.onMarkDone,
     required this.onOpenChat,
   });
 
   final String title;
   final List<ProviderBookingModel> bookings;
+  final String emptyTitle;
+  final String emptyDescription;
   final ValueChanged<ProviderBookingModel> onMarkDone;
   final ValueChanged<ProviderBookingModel> onOpenChat;
 
@@ -1279,10 +1296,10 @@ class _JobsSection extends StatelessWidget {
     return _SectionCard(
       title: title,
       child: bookings.isEmpty
-          ? const _EmptyState(
+          ? _EmptyState(
               icon: Icons.work_outline_rounded,
-              title: 'No upcoming jobs',
-              description: 'Accepted bookings will be tracked here.',
+              title: emptyTitle,
+              description: emptyDescription,
             )
           : Column(
               children: [

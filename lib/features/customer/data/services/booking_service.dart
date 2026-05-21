@@ -273,6 +273,11 @@ class BookingService {
         'providerId': service.providerId,
         'customerName': customer.displayName,
         'providerName': service.providerName,
+        'lastMessage': '',
+        'lastMessageAt': null,
+        'lastSenderId': '',
+        'unreadForCustomer': 0,
+        'unreadForProvider': 0,
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });

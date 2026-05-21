@@ -39,6 +39,8 @@ enum AppUserRole {
         return AppUserRole.admin;
       case 'service':
       case 'services':
+      case 'provider':
+      case 'providers':
       case 'service_provider':
         return AppUserRole.service;
       case 'customer':

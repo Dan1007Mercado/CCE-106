@@ -359,24 +359,7 @@ class _AuthGateState extends State<_AuthGate> {
             page = const LoginPage();
           }
 
-          return AnimatedSwitcher(
-            duration: AppTheme.motionDuration,
-            reverseDuration: AppTheme.motionReverseDuration,
-            switchInCurve: AppTheme.motionCurve,
-            switchOutCurve: AppTheme.motionCurve,
-            transitionBuilder: (child, animation) {
-              final offsetAnimation = Tween<Offset>(
-                begin: const Offset(0, 0.02),
-                end: Offset.zero,
-              ).animate(animation);
-
-              return FadeTransition(
-                opacity: animation,
-                child: SlideTransition(position: offsetAnimation, child: child),
-              );
-            },
-            child: KeyedSubtree(key: ValueKey(status), child: page),
-          );
+          return KeyedSubtree(key: ValueKey(status), child: page);
         },
       ),
     );

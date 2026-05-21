@@ -6,6 +6,10 @@ void main() {
     expect(AppUserRole.fromValue('services'), AppUserRole.service);
   });
 
+  test('maps provider role values to service users', () {
+    expect(AppUserRole.fromValue('provider'), AppUserRole.service);
+  });
+
   test('defaults unknown role values to customer', () {
     expect(AppUserRole.fromValue('anything-else'), AppUserRole.customer);
   });
