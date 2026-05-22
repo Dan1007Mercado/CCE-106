@@ -216,6 +216,9 @@ class ProviderApplicationService {
     required XFile image,
     required String fileName,
   }) async {
+    // Flutter Web uploads require Firebase Storage bucket CORS for localhost
+    // and deployed domains. Example:
+    // gcloud storage buckets update gs://handymar-31b60.firebasestorage.app --cors-file=cors.json
     try {
       final bytes = await image.readAsBytes();
       final reference = _storage
@@ -229,8 +232,10 @@ class ProviderApplicationService {
         SettableMetadata(contentType: 'image/jpeg'),
       );
       return reference.getDownloadURL();
-    } on FirebaseException catch (error) {
-      throw Exception(error.message ?? 'We could not upload your ID image.');
+    } on FirebaseException {
+      throw Exception(
+        'Could not upload valid ID image. Check Firebase Storage CORS and Storage Rules.',
+      );
     }
   }
 

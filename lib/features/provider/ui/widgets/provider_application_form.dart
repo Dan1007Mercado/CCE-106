@@ -207,63 +207,48 @@ class _ProviderApplicationFormState extends State<ProviderApplicationForm> {
               validator: _required,
             ),
             const SizedBox(height: AppSizes.fieldGap),
-            Row(
+            _ResponsiveFieldRow(
               children: [
-                Expanded(
-                  child: CustomTextField(
-                    controller: _firstNameController,
-                    label: 'First name',
-                    validator: _required,
-                  ),
+                CustomTextField(
+                  controller: _firstNameController,
+                  label: 'First name',
+                  validator: _required,
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: CustomTextField(
-                    controller: _lastNameController,
-                    label: 'Last name',
-                    validator: _required,
-                  ),
+                CustomTextField(
+                  controller: _lastNameController,
+                  label: 'Last name',
+                  validator: _required,
                 ),
               ],
             ),
             const SizedBox(height: AppSizes.fieldGap),
-            Row(
+            _ResponsiveFieldRow(
               children: [
-                Expanded(
-                  child: CustomTextField(
-                    controller: _middleNameController,
-                    label: 'Middle name',
-                    hintText: 'Optional',
-                  ),
+                CustomTextField(
+                  controller: _middleNameController,
+                  label: 'Middle name',
+                  hintText: 'Optional',
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: CustomTextField(
-                    controller: _suffixController,
-                    label: 'Suffix',
-                    hintText: 'Optional',
-                  ),
+                CustomTextField(
+                  controller: _suffixController,
+                  label: 'Suffix',
+                  hintText: 'Optional',
                 ),
               ],
             ),
             const SizedBox(height: AppSizes.fieldGap),
-            Row(
+            _ResponsiveFieldRow(
               children: [
-                Expanded(
-                  child: CustomTextField(
-                    controller: _ageController,
-                    label: 'Age',
-                    keyboardType: TextInputType.number,
-                    validator: _ageValidator,
-                  ),
+                CustomTextField(
+                  controller: _ageController,
+                  label: 'Age',
+                  keyboardType: TextInputType.number,
+                  validator: _ageValidator,
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: CustomTextField(
-                    controller: _genderController,
-                    label: 'Gender',
-                    hintText: 'Optional',
-                  ),
+                CustomTextField(
+                  controller: _genderController,
+                  label: 'Gender',
+                  hintText: 'Optional',
                 ),
               ],
             ),
@@ -311,22 +296,17 @@ class _ProviderApplicationFormState extends State<ProviderApplicationForm> {
               validator: _required,
             ),
             const SizedBox(height: AppSizes.fieldGap),
-            Row(
+            _ResponsiveFieldRow(
               children: [
-                Expanded(
-                  child: CustomTextField(
-                    controller: _cityController,
-                    label: 'City',
-                    validator: _required,
-                  ),
+                CustomTextField(
+                  controller: _cityController,
+                  label: 'City',
+                  validator: _required,
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: CustomTextField(
-                    controller: _provinceController,
-                    label: 'Province',
-                    validator: _required,
-                  ),
+                CustomTextField(
+                  controller: _provinceController,
+                  label: 'Province',
+                  validator: _required,
                 ),
               ],
             ),
@@ -651,6 +631,43 @@ class _ProviderApplicationFormState extends State<ProviderApplicationForm> {
 
 enum _ApplicationImageSlot { front, back, selfie }
 
+class _ResponsiveFieldRow extends StatelessWidget {
+  const _ResponsiveFieldRow({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final useColumns = constraints.maxWidth < 560;
+
+        if (useColumns) {
+          return Column(
+            children: [
+              for (var index = 0; index < children.length; index++) ...[
+                children[index],
+                if (index != children.length - 1)
+                  const SizedBox(height: AppSizes.fieldGap),
+              ],
+            ],
+          );
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (var index = 0; index < children.length; index++) ...[
+              Expanded(child: children[index]),
+              if (index != children.length - 1) const SizedBox(width: 10),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
 class _UploadButton extends StatelessWidget {
   const _UploadButton({
     required this.label,
@@ -678,16 +695,29 @@ class _UploadButton extends StatelessWidget {
         ? 'Required'
         : 'Optional';
 
-    return OutlinedButton.icon(
+    return OutlinedButton(
       onPressed: isPicking ? null : onPressed,
-      icon: isPicking
-          ? const SizedBox(
+      child: Row(
+        mainAxisSize: MainAxisSize.max,
+        children: [
+          if (isPicking)
+            const SizedBox(
               width: 16,
               height: 16,
               child: CircularProgressIndicator(strokeWidth: 2),
             )
-          : const Icon(Icons.upload_file_outlined),
-      label: Text('$label - $detail'),
+          else
+            const Icon(Icons.upload_file_outlined),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              '$label - $detail',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
