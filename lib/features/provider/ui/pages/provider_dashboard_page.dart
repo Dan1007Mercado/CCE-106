@@ -423,178 +423,38 @@ class _ProviderDashboardPageState extends State<ProviderDashboardPage>
   }
 
   Future<void> _showAddServiceSheet(UserModel provider) async {
-    final formKey = GlobalKey<FormState>();
-    final titleController = TextEditingController();
-    final descriptionController = TextEditingController();
-    final locationController = TextEditingController(text: provider.address);
-    final priceController = TextEditingController();
-    var selectedCategory = _serviceCategories.first;
-    var isSaving = false;
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) {
+        return _ServiceListingSheet(
+          categories: _serviceCategories,
+          initialLocation: provider.address,
+          title: 'Add service listing',
+          submitLabel: 'Save listing',
+          onSave:
+              ({
+                required String category,
+                required String description,
+                required String location,
+                required double price,
+                required String title,
+              }) {
+                return _providerService.addServiceListing(
+                  provider: provider,
+                  title: title,
+                  category: category,
+                  description: description,
+                  location: location,
+                  price: price,
+                );
+              },
+        );
+      },
+    );
 
-    try {
-      await showModalBottomSheet<void>(
-        context: context,
-        isScrollControlled: true,
-        builder: (sheetContext) {
-          return StatefulBuilder(
-            builder: (sheetContext, setSheetState) {
-              Future<void> saveListing() async {
-                if (!formKey.currentState!.validate()) {
-                  return;
-                }
-
-                final price = double.tryParse(priceController.text.trim());
-                if (price == null || price <= 0) {
-                  Helpers.showSnackBar(
-                    sheetContext,
-                    'Enter a valid service price.',
-                    isError: true,
-                  );
-                  return;
-                }
-
-                setSheetState(() {
-                  isSaving = true;
-                });
-
-                var shouldResetSaving = true;
-                try {
-                  await _providerService.addServiceListing(
-                    provider: provider,
-                    title: titleController.text,
-                    category: selectedCategory,
-                    description: descriptionController.text,
-                    location: locationController.text,
-                    price: price,
-                  );
-
-                  if (!mounted || !sheetContext.mounted) {
-                    return;
-                  }
-
-                  shouldResetSaving = false;
-                  Navigator.of(sheetContext).pop();
-                  Helpers.showSnackBar(context, 'Service listing saved.');
-                } catch (error) {
-                  if (!sheetContext.mounted) {
-                    return;
-                  }
-
-                  Helpers.showSnackBar(
-                    sheetContext,
-                    error.toString().replaceFirst('Exception: ', ''),
-                    isError: true,
-                  );
-                } finally {
-                  if (shouldResetSaving && sheetContext.mounted) {
-                    setSheetState(() {
-                      isSaving = false;
-                    });
-                  }
-                }
-              }
-
-              return Padding(
-                padding: EdgeInsets.fromLTRB(
-                  AppSizes.pagePadding,
-                  AppSizes.pagePadding,
-                  AppSizes.pagePadding,
-                  MediaQuery.of(sheetContext).viewInsets.bottom +
-                      AppSizes.pagePadding,
-                ),
-                child: Form(
-                  key: formKey,
-                  child: SingleChildScrollView(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Add service listing',
-                          style: Theme.of(sheetContext).textTheme.titleLarge
-                              ?.copyWith(fontWeight: FontWeight.w800),
-                        ),
-                        const SizedBox(height: AppSizes.fieldGap),
-                        CustomTextField(
-                          controller: titleController,
-                          label: 'Service title',
-                          hintText: 'Residential plumbing repair',
-                          prefixIcon: Icons.home_repair_service_outlined,
-                          validator: _requiredValidator,
-                        ),
-                        const SizedBox(height: AppSizes.fieldGap),
-                        DropdownButtonFormField<String>(
-                          initialValue: selectedCategory,
-                          decoration: const InputDecoration(
-                            labelText: 'Category',
-                            prefixIcon: Icon(Icons.category_outlined),
-                          ),
-                          items: _serviceCategories
-                              .map(
-                                (category) => DropdownMenuItem(
-                                  value: category,
-                                  child: Text(category),
-                                ),
-                              )
-                              .toList(),
-                          onChanged: isSaving
-                              ? null
-                              : (value) {
-                                  if (value == null) {
-                                    return;
-                                  }
-                                  setSheetState(() {
-                                    selectedCategory = value;
-                                  });
-                                },
-                        ),
-                        const SizedBox(height: AppSizes.fieldGap),
-                        CustomTextField(
-                          controller: descriptionController,
-                          label: 'Description',
-                          hintText: 'Describe scope, inclusions, and limits',
-                          prefixIcon: Icons.notes_rounded,
-                          maxLines: 4,
-                          validator: _requiredValidator,
-                        ),
-                        const SizedBox(height: AppSizes.fieldGap),
-                        CustomTextField(
-                          controller: locationController,
-                          label: 'Service location',
-                          hintText: 'City or covered area',
-                          prefixIcon: Icons.location_on_outlined,
-                          validator: _requiredValidator,
-                        ),
-                        const SizedBox(height: AppSizes.fieldGap),
-                        CustomTextField(
-                          controller: priceController,
-                          label: 'Fixed price',
-                          hintText: '1500',
-                          keyboardType: TextInputType.number,
-                          prefixIcon: Icons.payments_outlined,
-                          validator: _requiredValidator,
-                        ),
-                        const SizedBox(height: AppSizes.sectionGap),
-                        CustomButton(
-                          label: 'Save listing',
-                          icon: Icons.save_rounded,
-                          isLoading: isSaving,
-                          onPressed: saveListing,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            },
-          );
-        },
-      );
-    } finally {
-      titleController.dispose();
-      descriptionController.dispose();
-      locationController.dispose();
-      priceController.dispose();
+    if (saved == true && mounted) {
+      Helpers.showSnackBar(context, 'Service listing saved.');
     }
   }
 
@@ -602,180 +462,39 @@ class _ProviderDashboardPageState extends State<ProviderDashboardPage>
     UserModel provider,
     ServiceListingModel service,
   ) async {
-    final formKey = GlobalKey<FormState>();
-    final titleController = TextEditingController(text: service.title);
-    final descriptionController = TextEditingController(
-      text: service.description,
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) {
+        return _ServiceListingSheet(
+          categories: _serviceCategories,
+          initialService: service,
+          title: 'Edit service listing',
+          submitLabel: 'Save changes',
+          onSave:
+              ({
+                required String category,
+                required String description,
+                required String location,
+                required double price,
+                required String title,
+              }) {
+                return _providerService.updateServiceListing(
+                  serviceId: service.serviceId,
+                  providerId: provider.uid,
+                  title: title,
+                  category: category,
+                  description: description,
+                  location: location,
+                  price: price,
+                );
+              },
+        );
+      },
     );
-    final locationController = TextEditingController(text: service.location);
-    final priceController = TextEditingController(
-      text: service.price.toStringAsFixed(0),
-    );
-    var selectedCategory = _serviceCategories.contains(service.category)
-        ? service.category
-        : _serviceCategories.first;
-    var isSaving = false;
 
-    try {
-      await showModalBottomSheet<void>(
-        context: context,
-        isScrollControlled: true,
-        builder: (sheetContext) {
-          return StatefulBuilder(
-            builder: (sheetContext, setSheetState) {
-              Future<void> saveListing() async {
-                if (!formKey.currentState!.validate()) {
-                  return;
-                }
-
-                final price = double.tryParse(priceController.text.trim());
-                if (price == null || price <= 0) {
-                  Helpers.showSnackBar(
-                    sheetContext,
-                    'Enter a valid service price.',
-                    isError: true,
-                  );
-                  return;
-                }
-
-                setSheetState(() {
-                  isSaving = true;
-                });
-
-                var shouldResetSaving = true;
-                try {
-                  await _providerService.updateServiceListing(
-                    serviceId: service.serviceId,
-                    providerId: provider.uid,
-                    title: titleController.text,
-                    category: selectedCategory,
-                    description: descriptionController.text,
-                    location: locationController.text,
-                    price: price,
-                  );
-
-                  if (!mounted || !sheetContext.mounted) {
-                    return;
-                  }
-
-                  shouldResetSaving = false;
-                  Navigator.of(sheetContext).pop();
-                  Helpers.showSnackBar(context, 'Service listing updated.');
-                } catch (error) {
-                  if (!sheetContext.mounted) {
-                    return;
-                  }
-
-                  Helpers.showSnackBar(
-                    sheetContext,
-                    error.toString().replaceFirst('Exception: ', ''),
-                    isError: true,
-                  );
-                } finally {
-                  if (shouldResetSaving && sheetContext.mounted) {
-                    setSheetState(() {
-                      isSaving = false;
-                    });
-                  }
-                }
-              }
-
-              return Padding(
-                padding: EdgeInsets.fromLTRB(
-                  AppSizes.pagePadding,
-                  AppSizes.pagePadding,
-                  AppSizes.pagePadding,
-                  MediaQuery.of(sheetContext).viewInsets.bottom +
-                      AppSizes.pagePadding,
-                ),
-                child: Form(
-                  key: formKey,
-                  child: SingleChildScrollView(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Edit service listing',
-                          style: Theme.of(sheetContext).textTheme.titleLarge
-                              ?.copyWith(fontWeight: FontWeight.w800),
-                        ),
-                        const SizedBox(height: AppSizes.fieldGap),
-                        CustomTextField(
-                          controller: titleController,
-                          label: 'Service title',
-                          prefixIcon: Icons.home_repair_service_outlined,
-                          validator: _requiredValidator,
-                        ),
-                        const SizedBox(height: AppSizes.fieldGap),
-                        DropdownButtonFormField<String>(
-                          initialValue: selectedCategory,
-                          decoration: const InputDecoration(
-                            labelText: 'Category',
-                            prefixIcon: Icon(Icons.category_outlined),
-                          ),
-                          items: _serviceCategories
-                              .map(
-                                (category) => DropdownMenuItem(
-                                  value: category,
-                                  child: Text(category),
-                                ),
-                              )
-                              .toList(),
-                          onChanged: isSaving
-                              ? null
-                              : (value) {
-                                  if (value != null) {
-                                    setSheetState(() {
-                                      selectedCategory = value;
-                                    });
-                                  }
-                                },
-                        ),
-                        const SizedBox(height: AppSizes.fieldGap),
-                        CustomTextField(
-                          controller: descriptionController,
-                          label: 'Description',
-                          prefixIcon: Icons.notes_rounded,
-                          maxLines: 4,
-                          validator: _requiredValidator,
-                        ),
-                        const SizedBox(height: AppSizes.fieldGap),
-                        CustomTextField(
-                          controller: locationController,
-                          label: 'Service location',
-                          prefixIcon: Icons.location_on_outlined,
-                          validator: _requiredValidator,
-                        ),
-                        const SizedBox(height: AppSizes.fieldGap),
-                        CustomTextField(
-                          controller: priceController,
-                          label: 'Fixed price',
-                          keyboardType: TextInputType.number,
-                          prefixIcon: Icons.payments_outlined,
-                          validator: _requiredValidator,
-                        ),
-                        const SizedBox(height: AppSizes.sectionGap),
-                        CustomButton(
-                          label: 'Save changes',
-                          icon: Icons.save_rounded,
-                          isLoading: isSaving,
-                          onPressed: saveListing,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            },
-          );
-        },
-      );
-    } finally {
-      titleController.dispose();
-      descriptionController.dispose();
-      locationController.dispose();
-      priceController.dispose();
+    if (saved == true && mounted) {
+      Helpers.showSnackBar(context, 'Service listing updated.');
     }
   }
 
@@ -918,123 +637,372 @@ class _ProviderDashboardPageState extends State<ProviderDashboardPage>
   }
 
   Future<void> _showAddSlotSheet(UserModel provider) async {
-    final formKey = GlobalKey<FormState>();
-    final dateController = TextEditingController();
-    final slotController = TextEditingController();
-    var isSaving = false;
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) {
+        return _AvailabilitySlotSheet(
+          onSave: ({required String dateLabel, required String timeSlot}) {
+            return _providerService.addAvailabilitySlot(
+              providerId: provider.uid,
+              dateLabel: dateLabel,
+              timeSlot: timeSlot,
+            );
+          },
+        );
+      },
+    );
 
+    if (saved == true && mounted) {
+      Helpers.showSnackBar(context, 'Availability slot saved.');
+    }
+  }
+}
+
+typedef _SaveServiceListing =
+    Future<void> Function({
+      required String title,
+      required String category,
+      required String description,
+      required String location,
+      required double price,
+    });
+
+typedef _SaveAvailabilitySlot =
+    Future<void> Function({
+      required String dateLabel,
+      required String timeSlot,
+    });
+
+String? _requiredFieldValidator(String? value) {
+  if (value == null || value.trim().isEmpty) {
+    return 'This field is required.';
+  }
+
+  return null;
+}
+
+class _ServiceListingSheet extends StatefulWidget {
+  const _ServiceListingSheet({
+    required this.categories,
+    required this.title,
+    required this.submitLabel,
+    required this.onSave,
+    this.initialService,
+    this.initialLocation = '',
+  });
+
+  final List<String> categories;
+  final ServiceListingModel? initialService;
+  final String initialLocation;
+  final String title;
+  final String submitLabel;
+  final _SaveServiceListing onSave;
+
+  @override
+  State<_ServiceListingSheet> createState() => _ServiceListingSheetState();
+}
+
+class _ServiceListingSheetState extends State<_ServiceListingSheet> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _titleController;
+  late final TextEditingController _descriptionController;
+  late final TextEditingController _locationController;
+  late final TextEditingController _priceController;
+  late String _selectedCategory;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final service = widget.initialService;
+    _titleController = TextEditingController(text: service?.title ?? '');
+    _descriptionController = TextEditingController(
+      text: service?.description ?? '',
+    );
+    _locationController = TextEditingController(
+      text: service?.location ?? widget.initialLocation,
+    );
+    _priceController = TextEditingController(
+      text: service == null ? '' : service.price.toStringAsFixed(0),
+    );
+    _selectedCategory =
+        service != null && widget.categories.contains(service.category)
+        ? service.category
+        : widget.categories.first;
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _descriptionController.dispose();
+    _locationController.dispose();
+    _priceController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _saveListing() async {
+    if (!(_formKey.currentState?.validate() ?? false)) {
+      return;
+    }
+
+    final price = double.tryParse(_priceController.text.trim());
+    if (price == null || price <= 0) {
+      Helpers.showSnackBar(
+        context,
+        'Enter a valid service price.',
+        isError: true,
+      );
+      return;
+    }
+
+    setState(() {
+      _isSaving = true;
+    });
+
+    var shouldResetSaving = true;
     try {
-      await showModalBottomSheet<void>(
-        context: context,
-        isScrollControlled: true,
-        builder: (sheetContext) {
-          return StatefulBuilder(
-            builder: (sheetContext, setSheetState) {
-              Future<void> saveSlot() async {
-                if (!formKey.currentState!.validate()) {
-                  return;
-                }
+      await widget.onSave(
+        title: _titleController.text,
+        category: _selectedCategory,
+        description: _descriptionController.text,
+        location: _locationController.text,
+        price: price,
+      );
 
-                setSheetState(() {
-                  isSaving = true;
-                });
+      if (!mounted) {
+        return;
+      }
 
-                var shouldResetSaving = true;
-                try {
-                  await _providerService.addAvailabilitySlot(
-                    providerId: provider.uid,
-                    dateLabel: dateController.text,
-                    timeSlot: slotController.text,
-                  );
+      shouldResetSaving = false;
+      Navigator.of(context).pop(true);
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
 
-                  if (!mounted || !sheetContext.mounted) {
-                    return;
-                  }
-
-                  shouldResetSaving = false;
-                  Navigator.of(sheetContext).pop();
-                  Helpers.showSnackBar(context, 'Availability slot saved.');
-                } catch (error) {
-                  if (!sheetContext.mounted) {
-                    return;
-                  }
-
-                  Helpers.showSnackBar(
-                    sheetContext,
-                    error.toString().replaceFirst('Exception: ', ''),
-                    isError: true,
-                  );
-                } finally {
-                  if (shouldResetSaving && sheetContext.mounted) {
-                    setSheetState(() {
-                      isSaving = false;
-                    });
-                  }
-                }
-              }
-
-              return Padding(
-                padding: EdgeInsets.fromLTRB(
-                  AppSizes.pagePadding,
-                  AppSizes.pagePadding,
-                  AppSizes.pagePadding,
-                  MediaQuery.of(sheetContext).viewInsets.bottom +
-                      AppSizes.pagePadding,
-                ),
-                child: Form(
-                  key: formKey,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Add availability',
-                        style: Theme.of(sheetContext).textTheme.titleLarge
-                            ?.copyWith(fontWeight: FontWeight.w800),
-                      ),
-                      const SizedBox(height: AppSizes.fieldGap),
-                      CustomTextField(
-                        controller: dateController,
-                        label: 'Date label',
-                        hintText: 'May 18, 2026',
-                        prefixIcon: Icons.calendar_today_outlined,
-                        validator: _requiredValidator,
-                      ),
-                      const SizedBox(height: AppSizes.fieldGap),
-                      CustomTextField(
-                        controller: slotController,
-                        label: 'Time slot',
-                        hintText: '09:00 AM - 11:00 AM',
-                        prefixIcon: Icons.schedule_rounded,
-                        validator: _requiredValidator,
-                      ),
-                      const SizedBox(height: AppSizes.sectionGap),
-                      CustomButton(
-                        label: 'Save slot',
-                        icon: Icons.event_available_rounded,
-                        isLoading: isSaving,
-                        onPressed: saveSlot,
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          );
-        },
+      Helpers.showSnackBar(
+        context,
+        error.toString().replaceFirst('Exception: ', ''),
+        isError: true,
       );
     } finally {
-      dateController.dispose();
-      slotController.dispose();
+      if (shouldResetSaving && mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
     }
   }
 
-  String? _requiredValidator(String? value) {
-    if (value == null || value.trim().isEmpty) {
-      return 'This field is required.';
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        AppSizes.pagePadding,
+        AppSizes.pagePadding,
+        AppSizes.pagePadding,
+        MediaQuery.of(context).viewInsets.bottom + AppSizes.pagePadding,
+      ),
+      child: Form(
+        key: _formKey,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                widget.title,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: AppSizes.fieldGap),
+              CustomTextField(
+                controller: _titleController,
+                label: 'Service title',
+                hintText: 'Residential plumbing repair',
+                prefixIcon: Icons.home_repair_service_outlined,
+                validator: _requiredFieldValidator,
+              ),
+              const SizedBox(height: AppSizes.fieldGap),
+              DropdownButtonFormField<String>(
+                initialValue: _selectedCategory,
+                decoration: const InputDecoration(
+                  labelText: 'Category',
+                  prefixIcon: Icon(Icons.category_outlined),
+                ),
+                items: widget.categories
+                    .map(
+                      (category) => DropdownMenuItem(
+                        value: category,
+                        child: Text(category),
+                      ),
+                    )
+                    .toList(),
+                onChanged: _isSaving
+                    ? null
+                    : (value) {
+                        if (value == null) {
+                          return;
+                        }
+                        setState(() {
+                          _selectedCategory = value;
+                        });
+                      },
+              ),
+              const SizedBox(height: AppSizes.fieldGap),
+              CustomTextField(
+                controller: _descriptionController,
+                label: 'Description',
+                hintText: 'Describe scope, inclusions, and limits',
+                prefixIcon: Icons.notes_rounded,
+                maxLines: 4,
+                validator: _requiredFieldValidator,
+              ),
+              const SizedBox(height: AppSizes.fieldGap),
+              CustomTextField(
+                controller: _locationController,
+                label: 'Service location',
+                hintText: 'City or covered area',
+                prefixIcon: Icons.location_on_outlined,
+                validator: _requiredFieldValidator,
+              ),
+              const SizedBox(height: AppSizes.fieldGap),
+              CustomTextField(
+                controller: _priceController,
+                label: 'Fixed price',
+                hintText: '1500',
+                keyboardType: TextInputType.number,
+                prefixIcon: Icons.payments_outlined,
+                validator: _requiredFieldValidator,
+              ),
+              const SizedBox(height: AppSizes.sectionGap),
+              CustomButton(
+                label: widget.submitLabel,
+                icon: Icons.save_rounded,
+                isLoading: _isSaving,
+                onPressed: _saveListing,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AvailabilitySlotSheet extends StatefulWidget {
+  const _AvailabilitySlotSheet({required this.onSave});
+
+  final _SaveAvailabilitySlot onSave;
+
+  @override
+  State<_AvailabilitySlotSheet> createState() => _AvailabilitySlotSheetState();
+}
+
+class _AvailabilitySlotSheetState extends State<_AvailabilitySlotSheet> {
+  final _formKey = GlobalKey<FormState>();
+  final _dateController = TextEditingController();
+  final _slotController = TextEditingController();
+  bool _isSaving = false;
+
+  @override
+  void dispose() {
+    _dateController.dispose();
+    _slotController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _saveSlot() async {
+    if (!(_formKey.currentState?.validate() ?? false)) {
+      return;
     }
 
-    return null;
+    setState(() {
+      _isSaving = true;
+    });
+
+    var shouldResetSaving = true;
+    try {
+      await widget.onSave(
+        dateLabel: _dateController.text,
+        timeSlot: _slotController.text,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      shouldResetSaving = false;
+      Navigator.of(context).pop(true);
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      Helpers.showSnackBar(
+        context,
+        error.toString().replaceFirst('Exception: ', ''),
+        isError: true,
+      );
+    } finally {
+      if (shouldResetSaving && mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        AppSizes.pagePadding,
+        AppSizes.pagePadding,
+        AppSizes.pagePadding,
+        MediaQuery.of(context).viewInsets.bottom + AppSizes.pagePadding,
+      ),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Add availability',
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: AppSizes.fieldGap),
+            CustomTextField(
+              controller: _dateController,
+              label: 'Date label',
+              hintText: 'May 18, 2026',
+              prefixIcon: Icons.calendar_today_outlined,
+              validator: _requiredFieldValidator,
+            ),
+            const SizedBox(height: AppSizes.fieldGap),
+            CustomTextField(
+              controller: _slotController,
+              label: 'Time slot',
+              hintText: '09:00 AM - 11:00 AM',
+              prefixIcon: Icons.schedule_rounded,
+              validator: _requiredFieldValidator,
+            ),
+            const SizedBox(height: AppSizes.sectionGap),
+            CustomButton(
+              label: 'Save slot',
+              icon: Icons.event_available_rounded,
+              isLoading: _isSaving,
+              onPressed: _saveSlot,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -1178,7 +1146,9 @@ class _ProviderDashboardContent extends StatelessWidget {
                 _ProviderSectionHeader(
                   title: 'Recent booking requests',
                   description: 'Review new customer bookings as they arrive.',
-                  trailing: _ProviderStatusPill(label: pending.length.toString()),
+                  trailing: _ProviderStatusPill(
+                    label: pending.length.toString(),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 if (pending.isEmpty)
@@ -1275,15 +1245,14 @@ class _ProviderDashboardContent extends StatelessWidget {
                   description: 'Monitor earnings and platform commissions.',
                 ),
                 const SizedBox(height: 12),
-                _ProviderRevenueSummary(
-                  earnings: earnings,
-                  payments: payments,
-                ),
+                _ProviderRevenueSummary(earnings: earnings, payments: payments),
                 const SizedBox(height: AppSizes.sectionGap),
                 _ProviderSectionHeader(
                   title: 'Recent payments',
                   description: 'Latest customer payment records.',
-                  trailing: _ProviderStatusPill(label: payments.length.toString()),
+                  trailing: _ProviderStatusPill(
+                    label: payments.length.toString(),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 if (payments.isEmpty)
@@ -1305,8 +1274,9 @@ class _ProviderDashboardContent extends StatelessWidget {
                   title: 'Open customer job requests',
                   description:
                       'Browse public requests that match your service categories.',
-                  trailing:
-                      _ProviderStatusPill(label: openJobRequests.length.toString()),
+                  trailing: _ProviderStatusPill(
+                    label: openJobRequests.length.toString(),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 if (openJobRequests.isEmpty)
@@ -1426,7 +1396,8 @@ class _ProviderWelcomePanel extends StatelessWidget {
     final theme = Theme.of(context);
     final status = application?.status ?? user.providerVerificationStatus;
     final normalizedStatus = status.trim().toLowerCase();
-    final isVerified = user.isApprovedProvider || normalizedStatus == 'approved';
+    final isVerified =
+        user.isApprovedProvider || normalizedStatus == 'approved';
 
     final verificationLabel = switch (normalizedStatus) {
       'approved' => 'Verified Provider',
@@ -1571,10 +1542,7 @@ class _ProviderSectionHeader extends StatelessWidget {
             ],
           ),
         ),
-        if (trailing != null) ...[
-          const SizedBox(width: 12),
-          trailing!,
-        ],
+        if (trailing != null) ...[const SizedBox(width: 12), trailing!],
       ],
     );
   }
@@ -1625,8 +1593,9 @@ class _ProviderMetricGrid extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).textTheme.bodyMedium?.color
-                          ?.withValues(alpha: 0.68),
+                      color: Theme.of(
+                        context,
+                      ).textTheme.bodyMedium?.color?.withValues(alpha: 0.68),
                     ),
                   ),
                 ],
@@ -1760,9 +1729,9 @@ class _ProviderStatusPill extends StatelessWidget {
       'paid' ||
       'available' => theme.tokens.successSoft,
       'pending' || 'inactive' => theme.tokens.warningSoft,
-      'declined' || 'rejected' || 'cancelled_by_customer' => theme
-          .colorScheme
-          .errorContainer,
+      'declined' ||
+      'rejected' ||
+      'cancelled_by_customer' => theme.colorScheme.errorContainer,
       _ => theme.tokens.subtleSurface,
     };
 
@@ -1932,7 +1901,9 @@ class _ProviderBookingsTabState extends State<_ProviderBookingsTab> {
         _ProviderSectionHeader(
           title: 'Booking requests',
           description: 'Track pending, active, and finished bookings.',
-          trailing: _ProviderStatusPill(label: widget.bookings.length.toString()),
+          trailing: _ProviderStatusPill(
+            label: widget.bookings.length.toString(),
+          ),
         ),
         const SizedBox(height: 12),
         SingleChildScrollView(
@@ -2096,8 +2067,9 @@ class _ProviderServiceCard extends StatelessWidget {
               ),
               _ProviderMetaPill(
                 icon: Icons.star_rounded,
-                label:
-                    service.rating == 0 ? 'New' : service.rating.toStringAsFixed(1),
+                label: service.rating == 0
+                    ? 'New'
+                    : service.rating.toStringAsFixed(1),
               ),
               _ProviderMetaPill(
                 icon: Icons.location_on_outlined,
@@ -2419,12 +2391,18 @@ class _ProviderRevenueSummary extends StatelessWidget {
         spacing: 18,
         runSpacing: 18,
         children: [
-          _RevenueFigure(label: 'Total earnings', value: _formatCurrency(earnings)),
+          _RevenueFigure(
+            label: 'Total earnings',
+            value: _formatCurrency(earnings),
+          ),
           _RevenueFigure(
             label: 'Platform commission',
             value: _formatCurrency(commission),
           ),
-          _RevenueFigure(label: 'Payment records', value: payments.length.toString()),
+          _RevenueFigure(
+            label: 'Payment records',
+            value: payments.length.toString(),
+          ),
         ],
       ),
     );
@@ -2448,9 +2426,9 @@ class _RevenueFigure extends StatelessWidget {
             value,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.w800,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 4),
           Text(label),
@@ -2474,9 +2452,9 @@ class _ProviderPaymentCard extends StatelessWidget {
           _formatCurrency(payment.providerEarning),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w800,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
         ),
         const SizedBox(height: 6),
         Wrap(
@@ -2597,7 +2575,10 @@ class _ProviderJobRequestCard extends StatelessWidget {
             spacing: 8,
             runSpacing: 8,
             children: [
-              _ProviderMetaPill(icon: Icons.category_outlined, label: job.category),
+              _ProviderMetaPill(
+                icon: Icons.category_outlined,
+                label: job.category,
+              ),
               _ProviderMetaPill(
                 icon: Icons.payments_outlined,
                 label: '${_formatCurrency(job.budget)} budget',
@@ -3180,9 +3161,7 @@ class _ServiceListingTile extends StatelessWidget {
                           ? Icons.pause_circle_outline
                           : Icons.play_circle_outline,
                     ),
-                    label: Text(
-                      isActive ? 'Deactivate' : 'Activate',
-                    ),
+                    label: Text(isActive ? 'Deactivate' : 'Activate'),
                   ),
                   TextButton.icon(
                     onPressed: onDelete,
