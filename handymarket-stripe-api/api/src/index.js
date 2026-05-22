@@ -2,7 +2,7 @@ export default {
 	async fetch(request, env) {
 		const corsHeaders = {
 			'Access-Control-Allow-Origin': '*',
-			'Access-Control-Allow-Methods': 'POST, OPTIONS',
+			'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
 			'Access-Control-Allow-Headers': 'Content-Type',
 		};
 
@@ -13,6 +13,65 @@ export default {
 				status: 204,
 				headers: corsHeaders,
 			});
+		}
+
+		if (request.method === 'GET' && url.pathname === '/session-status') {
+			const sessionId = url.searchParams.get('session_id')?.trim();
+
+			if (!sessionId) {
+				return new Response(JSON.stringify({ error: 'Missing session_id.' }), {
+					status: 400,
+					headers: {
+						...corsHeaders,
+						'Content-Type': 'application/json',
+					},
+				});
+			}
+
+			try {
+				const stripeResponse = await fetch(`https://api.stripe.com/v1/checkout/sessions/${encodeURIComponent(sessionId)}`, {
+					method: 'GET',
+					headers: {
+						Authorization: `Bearer ${env.STRIPE_SECRET_KEY}`,
+					},
+				});
+
+				const session = await stripeResponse.json();
+
+				if (!stripeResponse.ok) {
+					return new Response(JSON.stringify(session), {
+						status: stripeResponse.status,
+						headers: {
+							...corsHeaders,
+							'Content-Type': 'application/json',
+						},
+					});
+				}
+
+				return new Response(
+					JSON.stringify({
+						sessionId: session.id,
+						status: session.status,
+						paymentStatus: session.payment_status,
+						paymentIntent: session.payment_intent,
+					}),
+					{
+						status: 200,
+						headers: {
+							...corsHeaders,
+							'Content-Type': 'application/json',
+						},
+					},
+				);
+			} catch (error) {
+				return new Response(JSON.stringify({ error: error.message }), {
+					status: 500,
+					headers: {
+						...corsHeaders,
+						'Content-Type': 'application/json',
+					},
+				});
+			}
 		}
 
 		if (request.method === 'GET' && url.pathname === '/success') {

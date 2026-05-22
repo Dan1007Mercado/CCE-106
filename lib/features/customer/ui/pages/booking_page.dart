@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -59,6 +62,7 @@ class _BookingPageState extends State<BookingPage> {
   final _notesController = TextEditingController();
   final BookingService _bookingService = BookingService();
   final StripeCheckoutService _stripeCheckoutService = StripeCheckoutService();
+  Timer? _paymentStatusTimer;
 
   DateTime _selectedDate = DateUtils.dateOnly(
     DateTime.now().add(const Duration(days: 1)),
@@ -69,6 +73,7 @@ class _BookingPageState extends State<BookingPage> {
   String _selectedPaymentMethod = _paymentMethods.first;
   bool _isSubmitting = false;
   bool _didPrefillAddress = false;
+  bool _isCheckingStripePaymentStatus = false;
 
   @override
   void didChangeDependencies() {
@@ -82,6 +87,7 @@ class _BookingPageState extends State<BookingPage> {
 
   @override
   void dispose() {
+    _paymentStatusTimer?.cancel();
     _addressController.dispose();
     _notesController.dispose();
     super.dispose();
@@ -451,16 +457,17 @@ class _BookingPageState extends State<BookingPage> {
         return;
       }
 
-      final checkoutUrl = await _stripeCheckoutService.createCheckoutSession(
-        bookingId: result.bookingId,
-        paymentId: result.paymentId,
-        serviceTitle: service.title,
-        customerEmail: user.email,
-        amount: result.totalAmount,
-      );
+      final checkoutSession = await _stripeCheckoutService
+          .createCheckoutSession(
+            bookingId: result.bookingId,
+            paymentId: result.paymentId,
+            serviceTitle: service.title,
+            customerEmail: user.email,
+            amount: result.totalAmount,
+          );
 
       final opened = await launchUrl(
-        Uri.parse(checkoutUrl),
+        Uri.parse(checkoutSession.checkoutUrl),
         mode: LaunchMode.externalApplication,
       );
 
@@ -471,6 +478,12 @@ class _BookingPageState extends State<BookingPage> {
       if (!mounted) {
         return;
       }
+
+      _startStripePaymentStatusPolling(
+        bookingId: result.bookingId,
+        paymentId: result.paymentId,
+        sessionId: checkoutSession.sessionId,
+      );
 
       Helpers.showSnackBar(
         context,
@@ -493,6 +506,84 @@ class _BookingPageState extends State<BookingPage> {
         });
       }
     }
+  }
+
+  void _startStripePaymentStatusPolling({
+    required String bookingId,
+    required String paymentId,
+    required String sessionId,
+  }) {
+    _paymentStatusTimer?.cancel();
+    _isCheckingStripePaymentStatus = false;
+
+    _paymentStatusTimer = Timer.periodic(const Duration(seconds: 3), (
+      timer,
+    ) async {
+      if (timer.tick > 100) {
+        timer.cancel();
+        if (_paymentStatusTimer == timer) {
+          _paymentStatusTimer = null;
+        }
+        return;
+      }
+
+      if (_isCheckingStripePaymentStatus) {
+        return;
+      }
+
+      _isCheckingStripePaymentStatus = true;
+
+      try {
+        final status = await _stripeCheckoutService.getSessionStatus(
+          sessionId: sessionId,
+        );
+
+        if (!status.isPaid) {
+          return;
+        }
+
+        timer.cancel();
+        if (_paymentStatusTimer == timer) {
+          _paymentStatusTimer = null;
+        }
+
+        await FirebaseFirestore.instance
+            .collection('bookings')
+            .doc(bookingId)
+            .set({
+              'paymentStatus': 'paid',
+              'stripeSessionId': sessionId,
+              'stripePaymentIntentId': status.paymentIntent,
+              'updatedAt': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true));
+
+        await FirebaseFirestore.instance
+            .collection('payments')
+            .doc(paymentId)
+            .set({
+              'status': 'paid',
+              'stripeSessionId': sessionId,
+              'stripePaymentIntentId': status.paymentIntent,
+              'completedAt': FieldValue.serverTimestamp(),
+              'updatedAt': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true));
+
+        if (!mounted) {
+          return;
+        }
+
+        Navigator.of(context).popUntil((route) => route.isFirst);
+        Helpers.showSnackBar(
+          context,
+          'Booking successfully paid and confirmed.',
+        );
+      } catch (error, stackTrace) {
+        debugPrint('Stripe payment status polling failed: $error');
+        debugPrintStack(stackTrace: stackTrace);
+      } finally {
+        _isCheckingStripePaymentStatus = false;
+      }
+    });
   }
 
   String? _addressValidator(String? value) {
