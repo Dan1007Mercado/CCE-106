@@ -1191,6 +1191,7 @@ class _ProviderDashboardContent extends StatelessWidget {
                   for (final booking in pending.take(3)) ...[
                     _ProviderBookingCard(
                       booking: booking,
+                      currentUserId: user.uid,
                       canAccept: isApproved,
                       onAccept: () => onAcceptBooking(booking),
                       onDecline: () => onDeclineBooking(booking),
@@ -1234,6 +1235,7 @@ class _ProviderDashboardContent extends StatelessWidget {
               accepted: upcoming,
               completed: completed,
               closed: declinedOrCancelled,
+              currentUserId: user.uid,
               canAccept: isApproved,
               onAcceptBooking: onAcceptBooking,
               onDeclineBooking: onDeclineBooking,
@@ -1888,6 +1890,7 @@ class _ProviderBookingsTab extends StatefulWidget {
     required this.accepted,
     required this.completed,
     required this.closed,
+    required this.currentUserId,
     required this.canAccept,
     required this.onAcceptBooking,
     required this.onDeclineBooking,
@@ -1900,6 +1903,7 @@ class _ProviderBookingsTab extends StatefulWidget {
   final List<ProviderBookingModel> accepted;
   final List<ProviderBookingModel> completed;
   final List<ProviderBookingModel> closed;
+  final String currentUserId;
   final bool canAccept;
   final ValueChanged<ProviderBookingModel> onAcceptBooking;
   final ValueChanged<ProviderBookingModel> onDeclineBooking;
@@ -1984,6 +1988,7 @@ class _ProviderBookingsTabState extends State<_ProviderBookingsTab> {
           for (final booking in visibleBookings) ...[
             _ProviderBookingCard(
               booking: booking,
+              currentUserId: widget.currentUserId,
               canAccept: widget.canAccept,
               onAccept: () => widget.onAcceptBooking(booking),
               onDecline: () => widget.onDeclineBooking(booking),
@@ -2137,6 +2142,7 @@ class _ProviderServiceCard extends StatelessWidget {
 class _ProviderBookingCard extends StatelessWidget {
   const _ProviderBookingCard({
     required this.booking,
+    required this.currentUserId,
     required this.canAccept,
     required this.onAccept,
     required this.onDecline,
@@ -2145,11 +2151,14 @@ class _ProviderBookingCard extends StatelessWidget {
   });
 
   final ProviderBookingModel booking;
+  final String currentUserId;
   final bool canAccept;
   final VoidCallback onAccept;
   final VoidCallback onDecline;
   final VoidCallback onMarkDone;
   final VoidCallback onOpenChat;
+
+  static final ChatService _chatService = ChatService();
 
   @override
   Widget build(BuildContext context) {
@@ -2268,11 +2277,77 @@ class _ProviderBookingCard extends StatelessWidget {
                 ),
               TextButton.icon(
                 onPressed: onOpenChat,
-                icon: const Icon(Icons.chat_bubble_outline_rounded),
+                icon: StreamBuilder<int>(
+                  stream: _chatService.streamUnreadCount(
+                    chatId: booking.bookingId,
+                    userId: currentUserId,
+                  ),
+                  builder: (context, snapshot) {
+                    return _ChatActionIconWithBadge(
+                      unreadCount: snapshot.data ?? 0,
+                    );
+                  },
+                ),
                 label: const Text('Chat'),
               ),
             ],
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChatActionIconWithBadge extends StatelessWidget {
+  const _ChatActionIconWithBadge({required this.unreadCount});
+
+  final int unreadCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final count = unreadCount < 0 ? 0 : unreadCount;
+    final label = count > 99 ? '99+' : count.toString();
+
+    return SizedBox(
+      width: 28,
+      height: 24,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          const Positioned(
+            left: 0,
+            bottom: 0,
+            child: Icon(Icons.chat_bubble_outline_rounded),
+          ),
+          if (count > 0)
+            Positioned(
+              right: -2,
+              top: -5,
+              child: Container(
+                constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                alignment: Alignment.center,
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.error,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                    color: theme.colorScheme.surface,
+                    width: 1.5,
+                  ),
+                ),
+                child: Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onError,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w900,
+                    height: 1.25,
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );

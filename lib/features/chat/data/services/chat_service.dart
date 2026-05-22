@@ -149,6 +149,34 @@ class ChatService {
         );
   }
 
+  Stream<int> streamUnreadCount({
+    required String chatId,
+    required String userId,
+  }) {
+    final cleanedChatId = chatId.trim();
+    final cleanedUserId = userId.trim();
+    if (cleanedChatId.isEmpty || cleanedUserId.isEmpty) {
+      return Stream.value(0);
+    }
+
+    return _chatsCollection.doc(cleanedChatId).snapshots().map((snapshot) {
+      final chat = snapshot.data();
+      if (chat == null) {
+        return 0;
+      }
+
+      final role = _roleForUser(chat, cleanedUserId);
+      if (role == null) {
+        return 0;
+      }
+
+      final unreadField = role == 'customer'
+          ? 'unreadForCustomer'
+          : 'unreadForProvider';
+      return _readInt(chat[unreadField]);
+    });
+  }
+
   Future<void> sendMessage({
     required String chatId,
     required String senderId,
