@@ -323,7 +323,7 @@ class _ProviderApplicationFormState extends State<ProviderApplicationForm> {
             _SectionTitle(label: 'Valid ID details'),
             const SizedBox(height: AppSizes.fieldGap),
             DropdownButtonFormField<String>(
-              value: _validIdType,
+              initialValue: _validIdType,
               decoration: const InputDecoration(
                 labelText: 'Valid ID type',
                 prefixIcon: Icon(Icons.credit_card_outlined),
@@ -360,7 +360,7 @@ class _ProviderApplicationFormState extends State<ProviderApplicationForm> {
             _SectionTitle(label: 'Service details'),
             const SizedBox(height: AppSizes.fieldGap),
             DropdownButtonFormField<String>(
-              value: _skillCategory,
+              initialValue: _skillCategory,
               decoration: const InputDecoration(
                 labelText: 'Skill category',
                 prefixIcon: Icon(Icons.category_outlined),

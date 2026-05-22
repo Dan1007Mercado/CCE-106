@@ -229,6 +229,10 @@ class _ProviderProfileContent extends StatelessWidget {
               ? () {
                   Navigator.of(sheetContext).pop();
                   Future<void>.microtask(() {
+                    if (!context.mounted) {
+                      return;
+                    }
+
                     _openApplicationForm(context);
                   });
                 }

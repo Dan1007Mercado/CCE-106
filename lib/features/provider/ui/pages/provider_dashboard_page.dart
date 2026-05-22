@@ -524,7 +524,7 @@ class _ProviderDashboardPageState extends State<ProviderDashboardPage>
                         ),
                         const SizedBox(height: AppSizes.fieldGap),
                         DropdownButtonFormField<String>(
-                          value: selectedCategory,
+                          initialValue: selectedCategory,
                           decoration: const InputDecoration(
                             labelText: 'Category',
                             prefixIcon: Icon(Icons.category_outlined),
@@ -709,7 +709,7 @@ class _ProviderDashboardPageState extends State<ProviderDashboardPage>
                         ),
                         const SizedBox(height: AppSizes.fieldGap),
                         DropdownButtonFormField<String>(
-                          value: selectedCategory,
+                          initialValue: selectedCategory,
                           decoration: const InputDecoration(
                             labelText: 'Category',
                             prefixIcon: Icon(Icons.category_outlined),
@@ -1337,14 +1337,6 @@ class _ProviderDashboardContent extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-
-  void _showApprovalRequired(BuildContext context) {
-    Helpers.showSnackBar(
-      context,
-      'Your provider application must be approved before listing services.',
-      isError: true,
     );
   }
 }
@@ -2557,6 +2549,7 @@ class _ProviderJobRequestCard extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _ProviderHero extends StatelessWidget {
   const _ProviderHero({
     required this.user,
@@ -2640,6 +2633,7 @@ class _ProviderHero extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _OpenJobRequestsSection extends StatelessWidget {
   const _OpenJobRequestsSection({required this.jobs});
 
@@ -2759,6 +2753,7 @@ class _OpenJobRequestTile extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _MetricGrid extends StatelessWidget {
   const _MetricGrid({required this.metrics, required this.isWide});
 
@@ -2814,6 +2809,7 @@ class _MetricGrid extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _BookingRequestsSection extends StatelessWidget {
   const _BookingRequestsSection({
     required this.pendingBookings,
@@ -2971,6 +2967,7 @@ class _BookingRequestTile extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _ServiceListingsSection extends StatelessWidget {
   const _ServiceListingsSection({
     required this.services,
@@ -3127,6 +3124,7 @@ class _ServiceListingTile extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _AvailabilitySection extends StatelessWidget {
   const _AvailabilitySection({required this.slots, required this.onAddSlot});
 
@@ -3164,6 +3162,7 @@ class _AvailabilitySection extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _JobsSection extends StatelessWidget {
   const _JobsSection({
     required this.title,
@@ -3265,6 +3264,7 @@ class _UpcomingBookingTile extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _RevenueSection extends StatelessWidget {
   const _RevenueSection({required this.payments});
 
