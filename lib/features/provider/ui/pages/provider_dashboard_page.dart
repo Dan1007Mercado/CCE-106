@@ -121,13 +121,6 @@ class _ProviderDashboardPageState extends State<ProviderDashboardPage>
             tooltip: 'Notifications',
             onTap: () => _showComingSoon('Notifications'),
           ),
-          _ProviderActionIcon(
-            icon: Icons.settings_outlined,
-            tooltip: 'Settings',
-            onTap: () {
-              Navigator.of(context).pushNamed(AppRouter.providerSettingsRoute);
-            },
-          ),
           Padding(
             padding: const EdgeInsets.only(right: AppSizes.pagePadding),
             child: InkWell(
@@ -1213,13 +1206,6 @@ class _ProviderDashboardContent extends StatelessWidget {
                 _ProviderSectionHeader(
                   title: 'My services',
                   description: 'Manage the services customers can book.',
-                  trailing: TextButton.icon(
-                    onPressed: isApproved
-                        ? onAddService
-                        : () => _showApprovalRequired(context),
-                    icon: const Icon(Icons.add_rounded),
-                    label: const Text('Add'),
-                  ),
                 ),
                 const SizedBox(height: 12),
                 if (services.isEmpty)
@@ -1610,6 +1596,7 @@ class _ProviderMetricGrid extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final crossAxisCount = constraints.maxWidth >= 760 ? 4 : 2;
+        final cardHeight = crossAxisCount == 2 ? 148.0 : 132.0;
 
         return GridView.builder(
           itemCount: metrics.length,
@@ -1619,7 +1606,7 @@ class _ProviderMetricGrid extends StatelessWidget {
             crossAxisCount: crossAxisCount,
             crossAxisSpacing: 12,
             mainAxisSpacing: 12,
-            mainAxisExtent: 126,
+            mainAxisExtent: cardHeight,
           ),
           itemBuilder: (context, index) {
             final metric = metrics[index];
@@ -1627,9 +1614,9 @@ class _ProviderMetricGrid extends StatelessWidget {
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   _ProviderIconCircle(icon: metric.icon),
+                  const Spacer(),
                   Text(
                     metric.value,
                     maxLines: 1,
@@ -1638,6 +1625,7 @@ class _ProviderMetricGrid extends StatelessWidget {
                       fontWeight: FontWeight.w800,
                     ),
                   ),
+                  const SizedBox(height: 4),
                   Text(
                     metric.label,
                     maxLines: 1,
@@ -1813,6 +1801,15 @@ class _ProviderMetaPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final background = Theme.of(context).tokens.subtleSurface;
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final double maxLabelWidth;
+    if (screenWidth < 360) {
+      maxLabelWidth = 108;
+    } else if (screenWidth < 480) {
+      maxLabelWidth = 156;
+    } else {
+      maxLabelWidth = 240;
+    }
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
@@ -1826,7 +1823,7 @@ class _ProviderMetaPill extends StatelessWidget {
           Icon(icon, size: 15, color: AppTheme.resolveOnColor(background)),
           const SizedBox(width: 6),
           ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 240),
+            constraints: BoxConstraints(maxWidth: maxLabelWidth),
             child: Text(
               label,
               maxLines: 1,
@@ -2403,44 +2400,71 @@ class _ProviderPaymentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final details = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          _formatCurrency(payment.providerEarning),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _ProviderMetaPill(
+              icon: Icons.price_change_outlined,
+              label:
+                  'Commission ${_formatCurrency(payment.platformCommissionAmount)}',
+            ),
+            _ProviderMetaPill(
+              icon: Icons.calendar_today_outlined,
+              label: _formatDate(payment.createdAt),
+            ),
+          ],
+        ),
+      ],
+    );
+
     return _ProviderDashboardCard(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const _ProviderIconCircle(icon: Icons.receipt_long_outlined),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isCompact = constraints.maxWidth < 360;
+
+          if (isCompact) {
+            return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  _formatCurrency(payment.providerEarning),
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
+                Row(
                   children: [
-                    _ProviderMetaPill(
-                      icon: Icons.price_change_outlined,
-                      label:
-                          'Commission ${_formatCurrency(payment.platformCommissionAmount)}',
+                    const _ProviderIconCircle(
+                      icon: Icons.receipt_long_outlined,
                     ),
-                    _ProviderMetaPill(
-                      icon: Icons.calendar_today_outlined,
-                      label: _formatDate(payment.createdAt),
-                    ),
+                    const Spacer(),
+                    _ProviderStatusPill(label: payment.status),
                   ],
                 ),
+                const SizedBox(height: 12),
+                details,
               ],
-            ),
-          ),
-          const SizedBox(width: 10),
-          _ProviderStatusPill(label: payment.status),
-        ],
+            );
+          }
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const _ProviderIconCircle(icon: Icons.receipt_long_outlined),
+              const SizedBox(width: 14),
+              Expanded(child: details),
+              const SizedBox(width: 10),
+              _ProviderStatusPill(label: payment.status),
+            ],
+          );
+        },
       ),
     );
   }

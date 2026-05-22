@@ -139,8 +139,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                                     bookingsSnapshot.data ?? const [],
                                   ),
                                   payments: paymentsSnapshot.data ?? const [],
-                                  notifications:
-                                      notificationsSnapshot.data ?? const [],
+                                  notifications: _filterNotifications(
+                                    notificationsSnapshot.data ?? const [],
+                                  ),
                                   terms: terms,
                                   termsController: _termsController,
                                   isSavingTerms: _isSavingTerms,
@@ -233,6 +234,21 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     return bookings.where((booking) {
       final source =
           '${booking.bookingId} ${booking.customerName} ${booking.providerName} ${booking.serviceTitle} ${booking.status} ${booking.paymentStatus}'
+              .toLowerCase();
+      return source.contains(_searchQuery);
+    }).toList();
+  }
+
+  List<AppNotificationModel> _filterNotifications(
+    List<AppNotificationModel> notifications,
+  ) {
+    if (_searchQuery.isEmpty) {
+      return notifications;
+    }
+
+    return notifications.where((notification) {
+      final source =
+          '${notification.title} ${notification.type} ${notification.body} ${notification.relatedId}'
               .toLowerCase();
       return source.contains(_searchQuery);
     }).toList();
@@ -547,13 +563,20 @@ class _AdminSidebar extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 30),
-            for (final item in _sidebarItems)
-              _SidebarButton(
-                item: item,
-                selected: selectedSection == item.section,
-                onTap: () => onSelectSection(item.section),
+            Expanded(
+              child: ListView(
+                padding: EdgeInsets.zero,
+                children: [
+                  for (final item in _sidebarItems)
+                    _SidebarButton(
+                      item: item,
+                      selected: selectedSection == item.section,
+                      onTap: () => onSelectSection(item.section),
+                    ),
+                ],
               ),
-            const Spacer(),
+            ),
+            const SizedBox(height: 16),
             Text(
               admin.displayName,
               maxLines: 1,
@@ -614,7 +637,8 @@ class _AdminTopBar extends StatelessWidget {
             child: TextField(
               controller: searchController,
               decoration: const InputDecoration(
-                hintText: 'Search users, applications, services, bookings',
+                hintText:
+                    'Search users, applications, services, bookings, notifications',
                 prefixIcon: Icon(Icons.search_rounded),
               ),
             ),
@@ -754,6 +778,8 @@ class _UsersSection extends StatelessWidget {
   Widget build(BuildContext context) {
     return _TableCard(
       title: 'Users',
+      dataRowMinHeight: 64,
+      dataRowMaxHeight: 72,
       child: DataTable(
         columns: const [
           DataColumn(label: Text('Name')),
@@ -779,13 +805,14 @@ class _UsersSection extends StatelessWidget {
                   ),
                 ),
                 DataCell(
-                  Wrap(
-                    spacing: 8,
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       TextButton(
                         onPressed: () => _showUserDetails(context, account),
                         child: const Text('View details'),
                       ),
+                      const SizedBox(width: 8),
                       TextButton(
                         onPressed: account.user.uid == currentAdminId
                             ? null
@@ -1037,7 +1064,7 @@ class _RevenueSection extends StatelessWidget {
               DataColumn(label: Text('Status')),
             ],
             rows: [
-              for (final payment in payments.take(20))
+              for (final payment in payments)
                 DataRow(
                   cells: [
                     DataCell(Text(_shortId(payment.paymentId))),
@@ -1217,37 +1244,165 @@ class _MetricGrid extends StatelessWidget {
   }
 }
 
-class _TableCard extends StatelessWidget {
-  const _TableCard({required this.title, required this.child});
+class _TableCard extends StatefulWidget {
+  const _TableCard({
+    required this.title,
+    required this.child,
+    this.dataRowMinHeight,
+    this.dataRowMaxHeight,
+  });
 
   final String title;
   final DataTable child;
+  final double? dataRowMinHeight;
+  final double? dataRowMaxHeight;
+
+  @override
+  State<_TableCard> createState() => _TableCardState();
+}
+
+class _TableCardState extends State<_TableCard> {
+  int _page = 0;
+
+  @override
+  void didUpdateWidget(covariant _TableCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.title != widget.title ||
+        oldWidget.child.rows.length != widget.child.rows.length) {
+      _page = 0;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(22),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final pageSize = constraints.maxWidth >= 900 ? 15 : 10;
+        final rows = widget.child.rows;
+        final maxPage = rows.isEmpty ? 0 : (rows.length - 1) ~/ pageSize;
+        final currentPage = _page > maxPage ? maxPage : _page;
+        final start = currentPage * pageSize;
+        final pageEnd = start + pageSize;
+        final end = pageEnd > rows.length ? rows.length : pageEnd;
+        final visibleRows = rows.sublist(start, end);
+
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(22),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.title,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                if (rows.isEmpty)
+                  const _EmptyState()
+                else ...[
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: DataTable(
+                      columns: widget.child.columns,
+                      rows: visibleRows,
+                      dataRowMinHeight: widget.dataRowMinHeight,
+                      dataRowMaxHeight: widget.dataRowMaxHeight,
+                    ),
+                  ),
+                  if (rows.length > pageSize) ...[
+                    const SizedBox(height: 14),
+                    _PaginationControls(
+                      start: start + 1,
+                      end: end,
+                      total: rows.length,
+                      currentPage: currentPage,
+                      maxPage: maxPage,
+                      onPrevious: currentPage == 0
+                          ? null
+                          : () {
+                              setState(() {
+                                _page = currentPage - 1;
+                              });
+                            },
+                      onNext: currentPage >= maxPage
+                          ? null
+                          : () {
+                              setState(() {
+                                _page = currentPage + 1;
+                              });
+                            },
+                    ),
+                  ],
+                ],
+              ],
             ),
-            const SizedBox(height: 18),
-            if (child.rows.isEmpty)
-              const _EmptyState()
-            else
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: child,
-              ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _PaginationControls extends StatelessWidget {
+  const _PaginationControls({
+    required this.start,
+    required this.end,
+    required this.total,
+    required this.currentPage,
+    required this.maxPage,
+    required this.onPrevious,
+    required this.onNext,
+  });
+
+  final int start;
+  final int end;
+  final int total;
+  final int currentPage;
+  final int maxPage;
+  final VoidCallback? onPrevious;
+  final VoidCallback? onNext;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Wrap(
+      spacing: 12,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        Text(
+          'Showing $start-$end of $total',
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.72),
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        Text(
+          'Page ${currentPage + 1} of ${maxPage + 1}',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.textTheme.bodySmall?.color?.withValues(alpha: 0.64),
+          ),
+        ),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton.filledTonal(
+              onPressed: onPrevious,
+              tooltip: 'Previous page',
+              icon: const Icon(Icons.chevron_left_rounded),
+            ),
+            const SizedBox(width: 6),
+            IconButton.filledTonal(
+              onPressed: onNext,
+              tooltip: 'Next page',
+              icon: const Icon(Icons.chevron_right_rounded),
+            ),
           ],
         ),
-      ),
+      ],
     );
   }
 }
@@ -1464,16 +1619,16 @@ const _sidebarItems = [
     Icons.calendar_month_outlined,
     'Bookings',
   ),
+  _SidebarItem(
+    _AdminSection.notifications,
+    Icons.notifications_outlined,
+    'Notifications',
+  ),
   _SidebarItem(_AdminSection.revenue, Icons.payments_outlined, 'Revenue'),
   _SidebarItem(
     _AdminSection.terms,
     Icons.policy_outlined,
     'Terms and Conditions',
-  ),
-  _SidebarItem(
-    _AdminSection.notifications,
-    Icons.notifications_outlined,
-    'Notifications',
   ),
 ];
 
