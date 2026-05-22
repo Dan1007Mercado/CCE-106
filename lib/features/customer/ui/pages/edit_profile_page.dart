@@ -1,13 +1,9 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/constants/app_sizes.dart';
 import '../../../../core/services/device_permission_service.dart';
 import '../../../../core/services/location_service.dart';
-import '../../../../core/services/profile_image_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/helpers.dart';
 import '../../../../core/utils/validators.dart';
@@ -49,19 +45,13 @@ class _EditProfilePageState extends State<EditProfilePage> {
   final CustomerService _customerService = CustomerService();
   final DevicePermissionService _permissionService = DevicePermissionService();
   final LocationService _locationService = LocationService();
-  final ProfileImageService _profileImageService = ProfileImageService();
 
-  XFile? _selectedProfileImage;
-  Uint8List? _selectedProfileImageBytes;
-  String _profileImageUrl = '';
   double? _latitude;
   double? _longitude;
-  UserPermissionStatus _photosPermission = UserPermissionStatus.unknown;
   UserPermissionStatus _locationPermission = UserPermissionStatus.unknown;
 
   bool _didInitialize = false;
   bool _isSaving = false;
-  bool _isPickingPhoto = false;
   bool _isLocating = false;
 
   @override
@@ -77,10 +67,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
       _suffixController.text = user.suffix;
       _phoneController.text = user.phone;
       _addressController.text = user.address;
-      _profileImageUrl = user.profilePic;
       _latitude = user.latitude;
       _longitude = user.longitude;
-      _photosPermission = user.photosPermission;
       _locationPermission = user.locationPermission;
     }
   }
@@ -122,7 +110,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Profile photo',
+                        'Profile avatar',
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.w700,
                         ),
@@ -133,62 +121,16 @@ class _EditProfilePageState extends State<EditProfilePage> {
                           ProfileAvatar(
                             radius: 34,
                             name: _previewDisplayName(user),
-                            imageProvider: _buildProfileImage(),
                           ),
                           const SizedBox(width: 16),
                           Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  _photosPermission ==
-                                          UserPermissionStatus.granted
-                                      ? 'Gallery access is ready for upload.'
-                                      : 'Photo upload is blocked until gallery access is granted.',
-                                  style: theme.textTheme.bodyMedium?.copyWith(
-                                    color: theme.textTheme.bodyMedium?.color
-                                        ?.withValues(alpha: 0.74),
-                                    height: 1.4,
-                                  ),
-                                ),
-                                const SizedBox(height: 10),
-                                Wrap(
-                                  spacing: 8,
-                                  runSpacing: 8,
-                                  children: [
-                                    OutlinedButton.icon(
-                                      onPressed: _isPickingPhoto || _isSaving
-                                          ? null
-                                          : () => _showPhotoSourceSheet(user),
-                                      icon: _isPickingPhoto
-                                          ? const SizedBox(
-                                              width: 16,
-                                              height: 16,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                              ),
-                                            )
-                                          : const Icon(
-                                              Icons.photo_library_outlined,
-                                            ),
-                                      label: const Text('Upload photo'),
-                                    ),
-                                    if (_photosPermission ==
-                                        UserPermissionStatus.permanentlyDenied)
-                                      TextButton(
-                                        onPressed: _openDeviceSettings,
-                                        child: const Text('Open settings'),
-                                      ),
-                                    if (!_showAvatarPlaceholder)
-                                      TextButton(
-                                        onPressed: _isSaving
-                                            ? null
-                                            : _removeProfilePhoto,
-                                        child: const Text('Remove'),
-                                      ),
-                                  ],
-                                ),
-                              ],
+                            child: Text(
+                              'Your avatar uses your initials. Image uploads are disabled on the free plan.',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: theme.textTheme.bodyMedium?.color
+                                    ?.withValues(alpha: 0.74),
+                                height: 1.4,
+                              ),
                             ),
                           ),
                         ],
@@ -353,137 +295,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
     );
   }
 
-  ImageProvider<Object>? _buildProfileImage() {
-    if (_selectedProfileImageBytes != null) {
-      return MemoryImage(_selectedProfileImageBytes!);
-    }
-
-    if (_profileImageUrl.trim().isNotEmpty) {
-      return NetworkImage(_profileImageUrl);
-    }
-
-    return null;
-  }
-
-  bool get _showAvatarPlaceholder =>
-      _selectedProfileImageBytes == null && _profileImageUrl.trim().isEmpty;
-
-  Future<void> _showPhotoSourceSheet(UserModel currentUser) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      builder: (context) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.photo_library_outlined),
-                  title: const Text('Choose from gallery'),
-                  subtitle: const Text('Pick an existing photo'),
-                  onTap: () {
-                    Navigator.of(context).pop();
-                    _pickProfilePhoto(
-                      currentUser: currentUser,
-                      source: ImageSource.gallery,
-                    );
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.photo_camera_outlined),
-                  title: const Text('Take a photo'),
-                  subtitle: const Text('Use your camera'),
-                  onTap: () {
-                    Navigator.of(context).pop();
-                    _pickProfilePhoto(
-                      currentUser: currentUser,
-                      source: ImageSource.camera,
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Future<void> _pickProfilePhoto({
-    required UserModel currentUser,
-    required ImageSource source,
-  }) async {
-    setState(() {
-      _isPickingPhoto = true;
-    });
-
-    try {
-      final permissionStatus = source == ImageSource.camera
-          ? await _permissionService.requestCameraPermission()
-          : await _permissionService.requestPhotosPermission();
-
-      if (source == ImageSource.gallery) {
-        await _syncProfilePreferences(
-          currentUser: currentUser,
-          photosPermission: permissionStatus,
-        );
-      }
-
-      if (!mounted) {
-        return;
-      }
-
-      if (source == ImageSource.gallery) {
-        setState(() {
-          _photosPermission = permissionStatus;
-        });
-      }
-
-      if (permissionStatus != UserPermissionStatus.granted) {
-        Helpers.showSnackBar(
-          context,
-          source == ImageSource.camera
-              ? 'Camera access is required to take a profile photo.'
-              : 'Profile photo upload stays unavailable until gallery access is granted.',
-          isError: true,
-        );
-        return;
-      }
-
-      final image = await _profileImageService.pickImage(source: source);
-      if (image == null) {
-        return;
-      }
-
-      final bytes = await image.readAsBytes();
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _selectedProfileImage = image;
-        _selectedProfileImageBytes = bytes;
-      });
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-
-      Helpers.showSnackBar(
-        context,
-        error.toString().replaceFirst('Exception: ', ''),
-        isError: true,
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isPickingPhoto = false;
-        });
-      }
-    }
-  }
-
   Future<void> _captureCurrentLocation(UserModel currentUser) async {
     setState(() {
       _isLocating = true;
@@ -529,14 +340,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
     }
   }
 
-  void _removeProfilePhoto() {
-    setState(() {
-      _selectedProfileImage = null;
-      _selectedProfileImageBytes = null;
-      _profileImageUrl = '';
-    });
-  }
-
   void _clearCoordinates() {
     setState(() {
       _latitude = null;
@@ -554,18 +357,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
     });
 
     try {
-      var imageUrl = _profileImageUrl.trim();
-      if (_selectedProfileImage != null) {
-        imageUrl = await _profileImageService.uploadProfileImage(
-          userId: currentUser.uid,
-          image: _selectedProfileImage!,
-        );
-      }
-
-      if (!mounted) {
-        return;
-      }
-
       final latestUser = context.read<AuthBloc>().state.user ?? currentUser;
       final updatedUser = await _customerService.updateCustomerProfile(
         currentUser: latestUser,
@@ -577,8 +368,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
         address: _addressController.text,
         latitude: _latitude,
         longitude: _longitude,
-        profilePic: imageUrl,
-        photosPermission: _photosPermission,
+        profilePic: '',
         locationPermission: _locationPermission,
       );
 
@@ -614,13 +404,11 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
   Future<void> _syncProfilePreferences({
     required UserModel currentUser,
-    UserPermissionStatus? photosPermission,
     UserPermissionStatus? locationPermission,
   }) async {
     final latestUser = context.read<AuthBloc>().state.user ?? currentUser;
     final updatedUser = await _customerService.updateUserPreferences(
       currentUser: latestUser,
-      photosPermission: photosPermission,
       locationPermission: locationPermission,
     );
 

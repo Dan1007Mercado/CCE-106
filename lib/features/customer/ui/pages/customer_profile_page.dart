@@ -50,9 +50,6 @@ class CustomerProfilePage extends StatelessWidget {
                   ProfileAvatar(
                     radius: 40,
                     name: user.displayName,
-                    imageProvider: user.profilePic.trim().isEmpty
-                        ? null
-                        : NetworkImage(user.profilePic),
                   ),
                   const SizedBox(height: 16),
                   Text(
@@ -118,7 +115,6 @@ class CustomerProfilePage extends StatelessWidget {
             title: 'System preferences',
             children: [
               _ProfileRow(label: 'Theme', value: user.themeMode.label),
-              _ProfileRow(label: 'Photos', value: user.photosPermission.label),
               _ProfileRow(
                 label: 'Notifications',
                 value: user.notificationsPermission.label,

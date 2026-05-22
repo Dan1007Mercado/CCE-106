@@ -53,7 +53,15 @@ class ProviderApplicationStatusSheet extends StatelessWidget {
             const SizedBox(height: AppSizes.sectionGap),
             _StatusRow(label: 'Status', value: _formatStatus(status)),
             _StatusRow(label: 'Full name', value: application.fullName),
-            _StatusRow(label: 'Skill category', value: application.skillCategory),
+            _StatusRow(label: 'Valid ID type', value: application.validIdType),
+            _StatusRow(
+              label: 'Masked ID',
+              value: application.maskedValidIdNumber,
+            ),
+            _StatusRow(
+              label: 'Skill category',
+              value: application.skillCategory,
+            ),
             _StatusRow(
               label: 'Experience',
               value: '${application.experienceYears} years',
@@ -65,6 +73,12 @@ class ProviderApplicationStatusSheet extends StatelessWidget {
             _StatusRow(
               label: 'Submitted',
               value: _formatDate(application.createdAt),
+            ),
+            _StatusRow(
+              label: 'Consent',
+              value: application.verificationConsentAccepted
+                  ? 'Accepted'
+                  : 'Not recorded',
             ),
             _StatusRow(
               label: 'Reviewed',

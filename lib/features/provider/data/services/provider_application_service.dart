@@ -1,6 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/services/notification_service.dart';
 import '../../../auth/data/models/user_model.dart';
@@ -22,18 +20,15 @@ class ProviderApplicationSubmission {
     required this.city,
     required this.province,
     required this.validIdType,
+    required this.validIdNumber,
+    required this.validIdDetails,
     required this.skillCategory,
     required this.experienceYears,
     required this.serviceDescription,
     required this.previousWorkDescription,
     required this.serviceLocationCoverage,
     required this.expectedRate,
-    required this.validIdFront,
-    required this.validIdBack,
-    required this.selfieWithId,
-    required this.existingValidIdFrontUrl,
-    required this.existingValidIdBackUrl,
-    required this.existingSelfieWithIdUrl,
+    required this.verificationConsentAccepted,
   });
 
   final String fullName;
@@ -50,34 +45,27 @@ class ProviderApplicationSubmission {
   final String city;
   final String province;
   final String validIdType;
+  final String validIdNumber;
+  final String validIdDetails;
   final String skillCategory;
   final int experienceYears;
   final String serviceDescription;
   final String previousWorkDescription;
   final String serviceLocationCoverage;
   final double? expectedRate;
-  final XFile? validIdFront;
-  final XFile? validIdBack;
-  final XFile? selfieWithId;
-  final String existingValidIdFrontUrl;
-  final String existingValidIdBackUrl;
-  final String existingSelfieWithIdUrl;
+  final bool verificationConsentAccepted;
 }
 
 class ProviderApplicationService {
   ProviderApplicationService({
     FirebaseFirestore? firestore,
-    FirebaseStorage? storage,
-    ImagePicker? imagePicker,
     NotificationService? notificationService,
   }) : _firestore = firestore ?? FirebaseFirestore.instance,
-       _storage = storage ?? FirebaseStorage.instance,
-       _imagePicker = imagePicker ?? ImagePicker(),
        _notificationService = notificationService ?? NotificationService();
 
+  static const String dataPrivacyNoticeVersion = 'provider_verification_v1';
+
   final FirebaseFirestore _firestore;
-  final FirebaseStorage _storage;
-  final ImagePicker _imagePicker;
   final NotificationService _notificationService;
 
   CollectionReference<Map<String, dynamic>> get _applicationsCollection =>
@@ -97,18 +85,6 @@ class ProviderApplicationService {
     });
   }
 
-  Future<XFile?> pickImage({required ImageSource source}) async {
-    try {
-      return _imagePicker.pickImage(
-        source: source,
-        imageQuality: 86,
-        maxWidth: 1800,
-      );
-    } catch (_) {
-      throw Exception('We could not open the selected image source.');
-    }
-  }
-
   Future<void> submitApplication({
     required UserModel provider,
     required ProviderApplicationSubmission submission,
@@ -119,37 +95,9 @@ class ProviderApplicationService {
 
     _validateSubmission(submission);
 
-    // Valid ID files contain private identity data. Firestore and Storage
-    // security rules must restrict these URLs/paths to the provider owner and
-    // Super Admin reviewers only.
-    final validIdFrontUrl = submission.validIdFront == null
-        ? submission.existingValidIdFrontUrl.trim()
-        : await _uploadApplicationImage(
-            providerId: provider.uid,
-            image: submission.validIdFront!,
-            fileName: 'valid_id_front.jpg',
-          );
-    final validIdBackUrl = submission.validIdBack == null
-        ? submission.existingValidIdBackUrl.trim()
-        : await _uploadApplicationImage(
-            providerId: provider.uid,
-            image: submission.validIdBack!,
-            fileName: 'valid_id_back.jpg',
-          );
-    final selfieWithIdUrl = submission.selfieWithId == null
-        ? submission.existingSelfieWithIdUrl.trim()
-        : await _uploadApplicationImage(
-            providerId: provider.uid,
-            image: submission.selfieWithId!,
-            fileName: 'selfie_with_id.jpg',
-          );
-
-    if (validIdFrontUrl.isEmpty) {
-      throw Exception('Please upload at least one valid ID photo.');
-    }
-
     final applicationRef = _applicationsCollection.doc(provider.uid);
     final userRef = _usersCollection.doc(provider.uid);
+    final validIdNumber = submission.validIdNumber.trim();
     final applicationData = {
       'applicationId': applicationRef.id,
       'providerId': provider.uid,
@@ -172,15 +120,18 @@ class ProviderApplicationService {
       'city': submission.city.trim(),
       'province': submission.province.trim(),
       'validIdType': submission.validIdType.trim(),
+      'validIdNumber': validIdNumber,
+      'validIdDetails': submission.validIdDetails.trim(),
+      'maskedValidIdNumber': maskValidIdNumber(validIdNumber),
       'skillCategory': submission.skillCategory.trim(),
       'experienceYears': submission.experienceYears,
       'serviceDescription': submission.serviceDescription.trim(),
       'previousWorkDescription': submission.previousWorkDescription.trim(),
       'serviceLocationCoverage': submission.serviceLocationCoverage.trim(),
       'expectedRate': submission.expectedRate,
-      'validIdFrontUrl': validIdFrontUrl,
-      'validIdBackUrl': validIdBackUrl,
-      'selfieWithIdUrl': selfieWithIdUrl,
+      'verificationConsentAccepted': true,
+      'verificationConsentAcceptedAt': FieldValue.serverTimestamp(),
+      'dataPrivacyNoticeVersion': dataPrivacyNoticeVersion,
       'status': 'pending',
       'adminRemarks': '',
       'reviewedBy': '',
@@ -209,34 +160,6 @@ class ProviderApplicationService {
       type: 'provider_application_submitted',
       relatedId: applicationRef.id,
     );
-  }
-
-  Future<String> _uploadApplicationImage({
-    required String providerId,
-    required XFile image,
-    required String fileName,
-  }) async {
-    // Flutter Web uploads require Firebase Storage bucket CORS for localhost
-    // and deployed domains. Example:
-    // gcloud storage buckets update gs://handymar-31b60.firebasestorage.app --cors-file=cors.json
-    try {
-      final bytes = await image.readAsBytes();
-      final reference = _storage
-          .ref()
-          .child('provider_applications')
-          .child(providerId)
-          .child(fileName);
-
-      await reference.putData(
-        bytes,
-        SettableMetadata(contentType: 'image/jpeg'),
-      );
-      return reference.getDownloadURL();
-    } on FirebaseException {
-      throw Exception(
-        'Could not upload valid ID image. Check Firebase Storage CORS and Storage Rules.',
-      );
-    }
   }
 
   void _validateSubmission(ProviderApplicationSubmission submission) {
@@ -269,6 +192,14 @@ class ProviderApplicationService {
       throw Exception('City and province are required.');
     }
 
+    if (submission.validIdType.trim().isEmpty) {
+      throw Exception('Valid ID type is required.');
+    }
+
+    if (submission.validIdNumber.trim().isEmpty) {
+      throw Exception('Valid ID number is required.');
+    }
+
     if (submission.skillCategory.trim().isEmpty) {
       throw Exception('Skill category is required.');
     }
@@ -289,13 +220,8 @@ class ProviderApplicationService {
       throw Exception('Expected rate must be 0 or higher.');
     }
 
-    if (submission.validIdType.trim().isEmpty) {
-      throw Exception('Valid ID type is required.');
-    }
-
-    if (submission.validIdFront == null &&
-        submission.existingValidIdFrontUrl.trim().isEmpty) {
-      throw Exception('Please upload at least one valid ID photo.');
+    if (!submission.verificationConsentAccepted) {
+      throw Exception('Accept the data collection consent before submitting.');
     }
   }
 }

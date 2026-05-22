@@ -30,6 +30,7 @@ class AppRouter {
   static const String providerDashboardRoute = '/provider/dashboard';
   static const String providerProfileRoute = '/provider/profile';
   static const String editProviderProfileRoute = '/provider/profile/edit';
+  static const String providerSettingsRoute = '/provider/settings';
   static const String adminDashboardRoute = '/admin/dashboard';
 
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
@@ -106,6 +107,11 @@ class AppRouter {
       case editProviderProfileRoute:
         return _AppPageRoute(
           builder: (_) => const EditProviderProfilePage(),
+          settings: settings,
+        );
+      case providerSettingsRoute:
+        return _AppPageRoute(
+          builder: (_) => const SettingsPage(title: 'Provider settings'),
           settings: settings,
         );
       case adminDashboardRoute:

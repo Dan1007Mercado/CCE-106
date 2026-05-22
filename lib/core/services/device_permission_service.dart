@@ -1,17 +1,8 @@
-import 'package:flutter/foundation.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../features/auth/data/models/user_model.dart';
 
 class DevicePermissionService {
-  Future<UserPermissionStatus> getPhotosPermissionStatus() {
-    return _readCombinedStatus(_photoPermissions);
-  }
-
-  Future<UserPermissionStatus> requestPhotosPermission() {
-    return _requestCombinedPermissions(_photoPermissions);
-  }
-
   Future<UserPermissionStatus> getNotificationsPermissionStatus() {
     return _readCombinedStatus(const [Permission.notification]);
   }
@@ -20,23 +11,7 @@ class DevicePermissionService {
     return _requestCombinedPermissions(const [Permission.notification]);
   }
 
-  Future<UserPermissionStatus> getCameraPermissionStatus() {
-    return _readCombinedStatus(const [Permission.camera]);
-  }
-
-  Future<UserPermissionStatus> requestCameraPermission() {
-    return _requestCombinedPermissions(const [Permission.camera]);
-  }
-
   Future<bool> openSettings() => openAppSettings();
-
-  List<Permission> get _photoPermissions {
-    if (defaultTargetPlatform == TargetPlatform.android) {
-      return const [Permission.photos, Permission.storage];
-    }
-
-    return const [Permission.photos];
-  }
 
   Future<UserPermissionStatus> _readCombinedStatus(
     List<Permission> permissions,

@@ -1,11 +1,7 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/constants/app_sizes.dart';
-import '../../../../core/services/job_photo_service.dart';
 import '../../../../core/utils/helpers.dart';
 import '../../../../core/widgets/custom_button.dart';
 import '../../../../core/widgets/custom_textfield.dart';
@@ -42,15 +38,11 @@ class _PostJobPageState extends State<PostJobPage> {
   final _locationController = TextEditingController();
   final _budgetController = TextEditingController();
   final CustomerService _customerService = CustomerService();
-  final JobPhotoService _jobPhotoService = JobPhotoService();
 
   String _selectedCategory = _categories.first;
   String _selectedDifficulty = 'Moderate';
   double? _selectedRating;
-  XFile? _selectedPhoto;
-  Uint8List? _selectedPhotoBytes;
   bool _isSubmitting = false;
-  bool _isPickingPhoto = false;
 
   @override
   void didChangeDependencies() {
@@ -203,13 +195,6 @@ class _PostJobPageState extends State<PostJobPage> {
                         });
                       },
               ),
-              const SizedBox(height: AppSizes.fieldGap),
-              _JobPhotoPicker(
-                imageBytes: _selectedPhotoBytes,
-                isPicking: _isPickingPhoto,
-                onPick: _pickPhoto,
-                onRemove: _selectedPhotoBytes == null ? null : _removePhoto,
-              ),
               const SizedBox(height: AppSizes.sectionGap),
               CustomButton(
                 label: 'Post job',
@@ -241,52 +226,6 @@ class _PostJobPageState extends State<PostJobPage> {
     return null;
   }
 
-  Future<void> _pickPhoto() async {
-    setState(() {
-      _isPickingPhoto = true;
-    });
-
-    try {
-      final photo = await _jobPhotoService.pickJobPhoto();
-      if (photo == null) {
-        return;
-      }
-
-      final bytes = await photo.readAsBytes();
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _selectedPhoto = photo;
-        _selectedPhotoBytes = bytes;
-      });
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-
-      Helpers.showSnackBar(
-        context,
-        error.toString().replaceFirst('Exception: ', ''),
-        isError: true,
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isPickingPhoto = false;
-        });
-      }
-    }
-  }
-
-  void _removePhoto() {
-    setState(() {
-      _selectedPhoto = null;
-      _selectedPhotoBytes = null;
-    });
-  }
-
   Future<void> _submit(UserModel user) async {
     if (!_formKey.currentState!.validate()) {
       return;
@@ -297,14 +236,6 @@ class _PostJobPageState extends State<PostJobPage> {
     });
 
     try {
-      var photoUrl = '';
-      if (_selectedPhoto != null) {
-        photoUrl = await _jobPhotoService.uploadJobPhoto(
-          userId: user.uid,
-          image: _selectedPhoto!,
-        );
-      }
-
       await _customerService.createJob(
         customer: user,
         title: _titleController.text,
@@ -314,7 +245,7 @@ class _PostJobPageState extends State<PostJobPage> {
         budget: double.parse(_budgetController.text.trim()),
         difficulty: _selectedDifficulty,
         ratingFilter: _selectedRating,
-        photoUrl: photoUrl,
+        photoUrl: '',
       );
 
       if (!mounted) {
@@ -339,68 +270,5 @@ class _PostJobPageState extends State<PostJobPage> {
         });
       }
     }
-  }
-}
-
-class _JobPhotoPicker extends StatelessWidget {
-  const _JobPhotoPicker({
-    required this.imageBytes,
-    required this.isPicking,
-    required this.onPick,
-    required this.onRemove,
-  });
-
-  final Uint8List? imageBytes;
-  final bool isPicking;
-  final VoidCallback onPick;
-  final VoidCallback? onRemove;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (imageBytes != null) ...[
-          ClipRRect(
-            borderRadius: BorderRadius.circular(AppSizes.radiusMd),
-            child: Image.memory(
-              imageBytes!,
-              height: 180,
-              width: double.infinity,
-              fit: BoxFit.cover,
-            ),
-          ),
-          const SizedBox(height: 10),
-        ],
-        OutlinedButton.icon(
-          onPressed: isPicking ? null : onPick,
-          icon: isPicking
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.add_photo_alternate_outlined),
-          label: Text(imageBytes == null ? 'Add job photo' : 'Change photo'),
-        ),
-        if (onRemove != null) ...[
-          const SizedBox(height: 6),
-          TextButton.icon(
-            onPressed: isPicking ? null : onRemove,
-            icon: const Icon(Icons.delete_outline_rounded),
-            label: const Text('Remove photo'),
-          ),
-        ],
-        const SizedBox(height: 4),
-        Text(
-          'Optional: show providers the job area or issue.',
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.textTheme.bodySmall?.color?.withValues(alpha: 0.72),
-          ),
-        ),
-      ],
-    );
   }
 }

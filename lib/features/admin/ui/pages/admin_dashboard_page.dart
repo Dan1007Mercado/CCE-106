@@ -623,9 +623,6 @@ class _AdminTopBar extends StatelessWidget {
           ProfileAvatar(
             radius: 20,
             name: admin.displayName,
-            imageProvider: admin.profilePic.trim().isEmpty
-                ? null
-                : NetworkImage(admin.profilePic),
           ),
           const SizedBox(width: 10),
           Text(
@@ -830,6 +827,7 @@ class _ApplicationsSection extends StatelessWidget {
           DataColumn(label: Text('Skill Category')),
           DataColumn(label: Text('Experience')),
           DataColumn(label: Text('Valid ID Type')),
+          DataColumn(label: Text('Masked ID Number')),
           DataColumn(label: Text('Status')),
           DataColumn(label: Text('Submitted Date')),
           DataColumn(label: Text('Actions')),
@@ -844,6 +842,7 @@ class _ApplicationsSection extends StatelessWidget {
                 DataCell(Text(application.skillCategory)),
                 DataCell(Text('${application.experienceYears} yrs')),
                 DataCell(Text(application.validIdType)),
+                DataCell(Text(application.maskedValidIdNumber)),
                 DataCell(_StatusPill(label: application.status)),
                 DataCell(Text(_formatDate(application.createdAt))),
                 DataCell(
@@ -1493,9 +1492,6 @@ void _showUserDetails(BuildContext context, AdminUserAccountModel account) {
               ProfileAvatar(
                 radius: 42,
                 name: user.displayName,
-                imageProvider: user.profilePic.trim().isEmpty
-                    ? null
-                    : NetworkImage(user.profilePic),
               ),
               const SizedBox(height: 18),
               _DetailRow('Full name', user.legalName),
@@ -1545,12 +1541,26 @@ void _showApplicationDetails(
               mainAxisSize: MainAxisSize.min,
               children: [
                 _DetailRow('Full name', application.fullName),
+                _DetailRow('First name', application.firstName),
+                _DetailRow('Middle name', application.middleName),
+                _DetailRow('Last name', application.lastName),
+                _DetailRow('Suffix', application.suffix),
                 _DetailRow('Age', application.age.toString()),
+                _DetailRow(
+                  'Birth date',
+                  application.birthDate == null
+                      ? ''
+                      : _formatDate(application.birthDate!),
+                ),
+                _DetailRow('Gender', application.gender),
                 _DetailRow('Phone number', application.phoneNumber),
                 _DetailRow('Email', application.email),
                 _DetailRow('Address', application.address),
                 _DetailRow('City', application.city),
                 _DetailRow('Province', application.province),
+                _DetailRow('Valid ID type', application.validIdType),
+                _DetailRow('Valid ID number', application.validIdNumber),
+                _DetailRow('Valid ID details', application.validIdDetails),
                 _DetailRow('Skill category', application.skillCategory),
                 _DetailRow(
                   'Experience',
@@ -1561,10 +1571,33 @@ void _showApplicationDetails(
                   application.serviceDescription,
                 ),
                 _DetailRow(
+                  'Previous work',
+                  application.previousWorkDescription,
+                ),
+                _DetailRow(
                   'Coverage area',
                   application.serviceLocationCoverage,
                 ),
-                _DetailRow('Valid ID type', application.validIdType),
+                _DetailRow(
+                  'Expected rate',
+                  application.expectedRate == null
+                      ? ''
+                      : _formatCurrency(application.expectedRate!),
+                ),
+                _DetailRow(
+                  'Consent accepted',
+                  application.verificationConsentAccepted ? 'Yes' : 'No',
+                ),
+                _DetailRow(
+                  'Consent accepted date',
+                  application.verificationConsentAcceptedAt == null
+                      ? 'Not recorded'
+                      : _formatDate(application.verificationConsentAcceptedAt!),
+                ),
+                _DetailRow(
+                  'Privacy notice version',
+                  application.dataPrivacyNoticeVersion,
+                ),
                 _DetailRow('Status', application.status),
                 _DetailRow('Admin remarks', application.adminRemarks),
                 _DetailRow('Submitted', _formatDate(application.createdAt)),
@@ -1573,21 +1606,6 @@ void _showApplicationDetails(
                   application.reviewedAt == null
                       ? 'Not reviewed'
                       : _formatDate(application.reviewedAt!),
-                ),
-                const SizedBox(height: 14),
-                const Text(
-                  'Valid ID images',
-                  style: TextStyle(fontWeight: FontWeight.w800),
-                ),
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: [
-                    _IdImage(label: 'Front', url: application.validIdFrontUrl),
-                    _IdImage(label: 'Back', url: application.validIdBackUrl),
-                    _IdImage(label: 'Selfie', url: application.selfieWithIdUrl),
-                  ],
                 ),
               ],
             ),
@@ -1666,58 +1684,6 @@ class _DetailRow extends StatelessWidget {
             ),
           ),
           Expanded(child: Text(value.trim().isEmpty ? 'Not provided' : value)),
-        ],
-      ),
-    );
-  }
-}
-
-class _IdImage extends StatelessWidget {
-  const _IdImage({required this.label, required this.url});
-
-  final String label;
-  final String url;
-
-  @override
-  Widget build(BuildContext context) {
-    if (url.trim().isEmpty) {
-      return SizedBox(
-        width: 180,
-        height: 130,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            border: Border.all(color: Theme.of(context).colorScheme.outline),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Center(child: Text('$label not uploaded')),
-        ),
-      );
-    }
-
-    return SizedBox(
-      width: 180,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: const TextStyle(fontWeight: FontWeight.w800)),
-          const SizedBox(height: 6),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: Image.network(
-              url,
-              height: 130,
-              width: 180,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) {
-                return Container(
-                  height: 130,
-                  width: 180,
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                  child: const Center(child: Text('Image unavailable')),
-                );
-              },
-            ),
-          ),
         ],
       ),
     );

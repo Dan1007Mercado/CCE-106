@@ -28,12 +28,6 @@
 	<true/>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>HandyMarket uses your location to save booking coordinates and show nearby service context.</string>
-	<key>NSCameraUsageDescription</key>
-	<string>HandyMarket uses the camera so you can take a profile photo.</string>
-	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>HandyMarket saves your selected image while uploading your profile photo.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>HandyMarket needs photo access so you can upload a profile picture.</string>
 	<key>NSUserNotificationUsageDescription</key>
 	<string>HandyMarket uses notifications for booking and job updates.</string>
 	<key>UIApplicationSceneManifest</key>

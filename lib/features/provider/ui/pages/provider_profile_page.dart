@@ -57,7 +57,18 @@ class _ProviderProfileContent extends StatelessWidget {
     final status = application?.status ?? user.providerVerificationStatus;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Provider profile')),
+      appBar: AppBar(
+        title: const Text('Provider profile'),
+        actions: [
+          IconButton(
+            tooltip: 'Settings',
+            onPressed: () {
+              Navigator.of(context).pushNamed(AppRouter.providerSettingsRoute);
+            },
+            icon: const Icon(Icons.settings_outlined),
+          ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.all(AppSizes.pagePadding),
         children: [
@@ -69,9 +80,6 @@ class _ProviderProfileContent extends StatelessWidget {
                   ProfileAvatar(
                     radius: 40,
                     name: user.displayName,
-                    imageProvider: user.profilePic.trim().isEmpty
-                        ? null
-                        : NetworkImage(user.profilePic),
                   ),
                   const SizedBox(height: 16),
                   Text(
@@ -108,6 +116,15 @@ class _ProviderProfileContent extends StatelessWidget {
                         onPressed: () => _openApplicationAction(context),
                         icon: const Icon(Icons.assignment_ind_outlined),
                         label: Text(_applicationActionLabel(status)),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.of(
+                            context,
+                          ).pushNamed(AppRouter.providerSettingsRoute);
+                        },
+                        icon: const Icon(Icons.settings_outlined),
+                        label: const Text('Settings'),
                       ),
                     ],
                   ),
@@ -150,6 +167,14 @@ class _ProviderProfileContent extends StatelessWidget {
                   label: 'Experience',
                   value: '${application!.experienceYears} years',
                 ),
+                _ProfileRow(
+                  label: 'Valid ID type',
+                  value: application!.validIdType,
+                ),
+                _ProfileRow(
+                  label: 'Masked ID number',
+                  value: application!.maskedValidIdNumber,
+                ),
                 if (application!.isRejected)
                   _ProfileRow(
                     label: 'Admin remarks',
@@ -164,7 +189,6 @@ class _ProviderProfileContent extends StatelessWidget {
             title: 'System preferences',
             children: [
               _ProfileRow(label: 'Theme', value: user.themeMode.label),
-              _ProfileRow(label: 'Photos', value: user.photosPermission.label),
               _ProfileRow(
                 label: 'Notifications',
                 value: user.notificationsPermission.label,

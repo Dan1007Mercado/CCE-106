@@ -1,14 +1,11 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/constants/app_sizes.dart';
 import '../../../../core/constants/app_strings.dart';
-import '../../../../core/services/job_photo_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/helpers.dart';
 import '../../../../core/widgets/brand_logo.dart';
@@ -65,7 +62,6 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
   final CustomerService _customerService = CustomerService();
   final BookingService _bookingService = BookingService();
   final ChatService _chatService = ChatService();
-  final JobPhotoService _jobPhotoService = JobPhotoService();
   final TextEditingController _searchController = TextEditingController();
   late final TabController _tabController;
   Timer? _welcomeTimer;
@@ -161,9 +157,6 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
                 child: ProfileAvatar(
                   radius: 18,
                   name: user.displayName,
-                  imageProvider: user.profilePic.trim().isEmpty
-                      ? null
-                      : NetworkImage(user.profilePic),
                 ),
               ),
             ),
@@ -465,10 +458,6 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
     double? selectedRating = _ratings.contains(job.ratingFilter)
         ? job.ratingFilter
         : null;
-    var photoUrl = job.photoUrl;
-    XFile? selectedPhoto;
-    Uint8List? selectedPhotoBytes;
-    var isPickingPhoto = false;
     var isSaving = false;
 
     try {
@@ -480,45 +469,6 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
         builder: (sheetContext) {
           return StatefulBuilder(
             builder: (sheetContext, setSheetState) {
-              Future<void> pickPhoto() async {
-                setSheetState(() {
-                  isPickingPhoto = true;
-                });
-
-                try {
-                  final photo = await _jobPhotoService.pickJobPhoto();
-                  if (photo == null) {
-                    return;
-                  }
-
-                  final bytes = await photo.readAsBytes();
-                  if (!sheetContext.mounted) {
-                    return;
-                  }
-
-                  setSheetState(() {
-                    selectedPhoto = photo;
-                    selectedPhotoBytes = bytes;
-                  });
-                } catch (error) {
-                  if (!sheetContext.mounted) {
-                    return;
-                  }
-
-                  Helpers.showSnackBar(
-                    sheetContext,
-                    error.toString().replaceFirst('Exception: ', ''),
-                    isError: true,
-                  );
-                } finally {
-                  if (sheetContext.mounted) {
-                    setSheetState(() {
-                      isPickingPhoto = false;
-                    });
-                  }
-                }
-              }
-
               Future<void> save() async {
                 if (!formKey.currentState!.validate()) {
                   return;
@@ -540,14 +490,6 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
 
                 var shouldResetSaving = true;
                 try {
-                  var updatedPhotoUrl = photoUrl;
-                  if (selectedPhoto != null) {
-                    updatedPhotoUrl = await _jobPhotoService.uploadJobPhoto(
-                      userId: user.uid,
-                      image: selectedPhoto!,
-                    );
-                  }
-
                   await _customerService.updateJob(
                     jobId: job.jobId,
                     currentUserId: user.uid,
@@ -558,7 +500,6 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
                     budget: budget,
                     difficulty: selectedDifficulty,
                     ratingFilter: selectedRating,
-                    photoUrl: updatedPhotoUrl,
                   );
 
                   if (!mounted || !sheetContext.mounted) {
@@ -825,22 +766,6 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
                                   ),
                                 ],
                               ),
-                            ),
-                            const SizedBox(height: 14),
-                            _EditableJobPhoto(
-                              photoUrl: photoUrl,
-                              selectedPhotoBytes: selectedPhotoBytes,
-                              isPicking: isPickingPhoto,
-                              onPick: isSaving ? null : pickPhoto,
-                              onRemove: isSaving
-                                  ? null
-                                  : () {
-                                      setSheetState(() {
-                                        photoUrl = '';
-                                        selectedPhoto = null;
-                                        selectedPhotoBytes = null;
-                                      });
-                                    },
                             ),
                             const SizedBox(height: AppSizes.sectionGap),
                             CustomButton(
@@ -2578,21 +2503,6 @@ class _JobFeedCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (job.photoUrl.trim().isNotEmpty) ...[
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(AppSizes.radiusMd),
-                    child: Image.network(
-                      job.photoUrl,
-                      height: 160,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return const SizedBox.shrink();
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                ],
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -2732,21 +2642,6 @@ class _JobFeedCard extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 18),
-                    if (job.photoUrl.trim().isNotEmpty) ...[
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(22),
-                        child: Image.network(
-                          job.photoUrl,
-                          height: 180,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return const SizedBox.shrink();
-                          },
-                        ),
-                      ),
-                      const SizedBox(height: 18),
-                    ],
                     Text(
                       job.title,
                       style: theme.textTheme.headlineSmall?.copyWith(
@@ -2963,77 +2858,6 @@ class _JobDetailRow extends StatelessWidget {
           ],
         ],
       ),
-    );
-  }
-}
-
-class _EditableJobPhoto extends StatelessWidget {
-  const _EditableJobPhoto({
-    required this.photoUrl,
-    required this.selectedPhotoBytes,
-    required this.isPicking,
-    required this.onPick,
-    required this.onRemove,
-  });
-
-  final String photoUrl;
-  final Uint8List? selectedPhotoBytes;
-  final bool isPicking;
-  final VoidCallback? onPick;
-  final VoidCallback? onRemove;
-
-  @override
-  Widget build(BuildContext context) {
-    final hasExistingPhoto = photoUrl.trim().isNotEmpty;
-    final hasPhoto = selectedPhotoBytes != null || hasExistingPhoto;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (selectedPhotoBytes != null)
-          ClipRRect(
-            borderRadius: BorderRadius.circular(AppSizes.radiusMd),
-            child: Image.memory(
-              selectedPhotoBytes!,
-              height: 180,
-              width: double.infinity,
-              fit: BoxFit.cover,
-            ),
-          )
-        else if (hasExistingPhoto)
-          ClipRRect(
-            borderRadius: BorderRadius.circular(AppSizes.radiusMd),
-            child: Image.network(
-              photoUrl,
-              height: 180,
-              width: double.infinity,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) {
-                return const SizedBox.shrink();
-              },
-            ),
-          ),
-        if (hasPhoto) const SizedBox(height: 10),
-        OutlinedButton.icon(
-          onPressed: isPicking ? null : onPick,
-          icon: isPicking
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.add_photo_alternate_outlined),
-          label: Text(hasPhoto ? 'Change photo' : 'Add job photo'),
-        ),
-        if (hasPhoto) ...[
-          const SizedBox(height: 6),
-          TextButton.icon(
-            onPressed: isPicking ? null : onRemove,
-            icon: const Icon(Icons.delete_outline_rounded),
-            label: const Text('Remove photo'),
-          ),
-        ],
-      ],
     );
   }
 }

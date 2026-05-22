@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/constants/app_sizes.dart';
 import '../../../../core/utils/helpers.dart';
@@ -28,13 +27,17 @@ class ProviderApplicationForm extends StatefulWidget {
 
 class _ProviderApplicationFormState extends State<ProviderApplicationForm> {
   static const List<String> _validIdTypes = [
-    'Driver\'s License',
+    "Driver's License",
     'National ID',
     'Passport',
     'UMID',
-    'Voter\'s ID',
+    "Voter's ID",
     'PhilHealth ID',
     'Postal ID',
+    'SSS ID',
+    'PRC ID',
+    'TIN ID',
+    'Barangay ID',
     'Other',
   ];
 
@@ -61,6 +64,8 @@ class _ProviderApplicationFormState extends State<ProviderApplicationForm> {
   late final TextEditingController _addressController;
   late final TextEditingController _cityController;
   late final TextEditingController _provinceController;
+  late final TextEditingController _validIdNumberController;
+  late final TextEditingController _validIdDetailsController;
   late final TextEditingController _experienceController;
   late final TextEditingController _descriptionController;
   late final TextEditingController _previousWorkController;
@@ -69,12 +74,9 @@ class _ProviderApplicationFormState extends State<ProviderApplicationForm> {
 
   late String _validIdType;
   late String _skillCategory;
-  XFile? _validIdFront;
-  XFile? _validIdBack;
-  XFile? _selfieWithId;
   DateTime? _birthDate;
   bool _isSaving = false;
-  bool _isPicking = false;
+  bool _verificationConsentAccepted = false;
 
   @override
   void initState() {
@@ -117,6 +119,12 @@ class _ProviderApplicationFormState extends State<ProviderApplicationForm> {
     _provinceController = TextEditingController(
       text: application?.province ?? '',
     );
+    _validIdNumberController = TextEditingController(
+      text: application?.validIdNumber ?? '',
+    );
+    _validIdDetailsController = TextEditingController(
+      text: application?.validIdDetails ?? '',
+    );
     _experienceController = TextEditingController(
       text: application == null ? '' : application.experienceYears.toString(),
     );
@@ -155,6 +163,8 @@ class _ProviderApplicationFormState extends State<ProviderApplicationForm> {
     _addressController.dispose();
     _cityController.dispose();
     _provinceController.dispose();
+    _validIdNumberController.dispose();
+    _validIdDetailsController.dispose();
     _experienceController.dispose();
     _descriptionController.dispose();
     _previousWorkController.dispose();
@@ -166,9 +176,6 @@ class _ProviderApplicationFormState extends State<ProviderApplicationForm> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final application = widget.application;
-    final hasExistingFront =
-        application?.validIdFrontUrl.trim().isNotEmpty ?? false;
 
     return Form(
       key: _formKey,
@@ -191,7 +198,7 @@ class _ProviderApplicationFormState extends State<ProviderApplicationForm> {
             ),
             const SizedBox(height: 6),
             Text(
-              'Valid ID photos are private and are only for provider-owner and Super Admin review.',
+              'Submit text-based identity and service details for Super Admin review. Image uploads are disabled on the free plan.',
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.textTheme.bodyMedium?.color?.withValues(
                   alpha: 0.72,
@@ -200,6 +207,8 @@ class _ProviderApplicationFormState extends State<ProviderApplicationForm> {
               ),
             ),
             const SizedBox(height: AppSizes.sectionGap),
+            _SectionTitle(label: 'Personal details'),
+            const SizedBox(height: AppSizes.fieldGap),
             CustomTextField(
               controller: _fullNameController,
               label: 'Full name',
@@ -310,6 +319,8 @@ class _ProviderApplicationFormState extends State<ProviderApplicationForm> {
                 ),
               ],
             ),
+            const SizedBox(height: AppSizes.sectionGap),
+            _SectionTitle(label: 'Valid ID details'),
             const SizedBox(height: AppSizes.fieldGap),
             DropdownButtonFormField<String>(
               value: _validIdType,
@@ -330,7 +341,24 @@ class _ProviderApplicationFormState extends State<ProviderApplicationForm> {
                       }
                     },
             ),
+            const SizedBox(height: AppSizes.fieldGap),
+            CustomTextField(
+              controller: _validIdNumberController,
+              label: _validIdNumberLabel(_validIdType),
+              prefixIcon: Icons.badge_outlined,
+              validator: _required,
+            ),
+            const SizedBox(height: AppSizes.fieldGap),
+            CustomTextField(
+              controller: _validIdDetailsController,
+              label: _validIdDetailsLabel(_validIdType),
+              hintText: 'Optional',
+              prefixIcon: Icons.notes_rounded,
+              maxLines: 2,
+            ),
             const SizedBox(height: AppSizes.sectionGap),
+            _SectionTitle(label: 'Service details'),
+            const SizedBox(height: AppSizes.fieldGap),
             DropdownButtonFormField<String>(
               value: _skillCategory,
               decoration: const InputDecoration(
@@ -389,31 +417,15 @@ class _ProviderApplicationFormState extends State<ProviderApplicationForm> {
               validator: _optionalNonNegativeNumber,
             ),
             const SizedBox(height: AppSizes.sectionGap),
-            _UploadButton(
-              label: 'Valid ID front',
-              requiredLabel: true,
-              value: _validIdFront?.name,
-              hasExisting: hasExistingFront,
-              isPicking: _isPicking,
-              onPressed: () => _pickImage(_ApplicationImageSlot.front),
-            ),
-            const SizedBox(height: 10),
-            _UploadButton(
-              label: 'Valid ID back',
-              value: _validIdBack?.name,
-              hasExisting:
-                  application?.validIdBackUrl.trim().isNotEmpty ?? false,
-              isPicking: _isPicking,
-              onPressed: () => _pickImage(_ApplicationImageSlot.back),
-            ),
-            const SizedBox(height: 10),
-            _UploadButton(
-              label: 'Selfie with ID',
-              value: _selfieWithId?.name,
-              hasExisting:
-                  application?.selfieWithIdUrl.trim().isNotEmpty ?? false,
-              isPicking: _isPicking,
-              onPressed: () => _pickImage(_ApplicationImageSlot.selfie),
+            _ConsentSection(
+              value: _verificationConsentAccepted,
+              onChanged: _isSaving
+                  ? null
+                  : (value) {
+                      setState(() {
+                        _verificationConsentAccepted = value ?? false;
+                      });
+                    },
             ),
             const SizedBox(height: AppSizes.sectionGap),
             CustomButton(
@@ -426,51 +438,6 @@ class _ProviderApplicationFormState extends State<ProviderApplicationForm> {
         ),
       ),
     );
-  }
-
-  Future<void> _pickImage(_ApplicationImageSlot slot) async {
-    setState(() {
-      _isPicking = true;
-    });
-
-    try {
-      final image = await _applicationService.pickImage(
-        source: ImageSource.gallery,
-      );
-      if (image == null || !mounted) {
-        return;
-      }
-
-      setState(() {
-        switch (slot) {
-          case _ApplicationImageSlot.front:
-            _validIdFront = image;
-            break;
-          case _ApplicationImageSlot.back:
-            _validIdBack = image;
-            break;
-          case _ApplicationImageSlot.selfie:
-            _selfieWithId = image;
-            break;
-        }
-      });
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-
-      Helpers.showSnackBar(
-        context,
-        error.toString().replaceFirst('Exception: ', ''),
-        isError: true,
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isPicking = false;
-        });
-      }
-    }
   }
 
   Future<void> _pickBirthDate() async {
@@ -502,17 +469,16 @@ class _ProviderApplicationFormState extends State<ProviderApplicationForm> {
   }
 
   Future<void> _submit() async {
-    final existingFrontUrl = widget.application?.validIdFrontUrl ?? '';
-    if ((_validIdFront == null && existingFrontUrl.trim().isEmpty)) {
-      Helpers.showSnackBar(
-        context,
-        'Please upload at least one valid ID photo.',
-        isError: true,
-      );
+    if (!_formKey.currentState!.validate()) {
       return;
     }
 
-    if (!_formKey.currentState!.validate()) {
+    if (!_verificationConsentAccepted) {
+      Helpers.showSnackBar(
+        context,
+        'Accept the data collection consent before submitting.',
+        isError: true,
+      );
       return;
     }
 
@@ -538,18 +504,15 @@ class _ProviderApplicationFormState extends State<ProviderApplicationForm> {
           city: _cityController.text,
           province: _provinceController.text,
           validIdType: _validIdType,
+          validIdNumber: _validIdNumberController.text,
+          validIdDetails: _validIdDetailsController.text,
           skillCategory: _skillCategory,
           experienceYears: int.parse(_experienceController.text.trim()),
           serviceDescription: _descriptionController.text,
           previousWorkDescription: _previousWorkController.text,
           serviceLocationCoverage: _coverageController.text,
           expectedRate: double.tryParse(_expectedRateController.text.trim()),
-          validIdFront: _validIdFront,
-          validIdBack: _validIdBack,
-          selfieWithId: _selfieWithId,
-          existingValidIdFrontUrl: existingFrontUrl,
-          existingValidIdBackUrl: widget.application?.validIdBackUrl ?? '',
-          existingSelfieWithIdUrl: widget.application?.selfieWithIdUrl ?? '',
+          verificationConsentAccepted: _verificationConsentAccepted,
         ),
       );
 
@@ -627,9 +590,103 @@ class _ProviderApplicationFormState extends State<ProviderApplicationForm> {
     final day = value.day.toString().padLeft(2, '0');
     return '${value.year}-$month-$day';
   }
+
+  String _validIdNumberLabel(String type) {
+    return switch (type) {
+      "Driver's License" => "Driver's License Number",
+      'National ID' => 'National ID Number / PSN or PCN',
+      'Passport' => 'Passport Number',
+      'UMID' => 'UMID CRN',
+      "Voter's ID" => "Voter's ID Number",
+      'PhilHealth ID' => 'PhilHealth Number',
+      'Postal ID' => 'Postal ID Number',
+      'SSS ID' => 'SSS Number',
+      'PRC ID' => 'PRC License Number',
+      'TIN ID' => 'TIN',
+      'Barangay ID' => 'Barangay ID Number',
+      _ => 'ID Number / Reference Number',
+    };
+  }
+
+  String _validIdDetailsLabel(String type) {
+    return switch (type) {
+      "Driver's License" => 'Restriction code / expiration date / notes',
+      'National ID' => 'Additional National ID details',
+      'Passport' => 'Expiration date / issuing country',
+      'UMID' => 'Additional UMID details',
+      "Voter's ID" => 'Precinct / city / notes',
+      'PhilHealth ID' => 'Additional PhilHealth details',
+      'Postal ID' => 'Expiration date / notes',
+      'SSS ID' => 'Additional SSS details',
+      'PRC ID' => 'Profession / expiration date',
+      'TIN ID' => 'Additional TIN details',
+      'Barangay ID' => 'Barangay / city / issue date',
+      _ => 'Describe the ID',
+    };
+  }
 }
 
-enum _ApplicationImageSlot { front, back, selfie }
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      label,
+      style: Theme.of(
+        context,
+      ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+    );
+  }
+}
+
+class _ConsentSection extends StatelessWidget {
+  const _ConsentSection({required this.value, required this.onChanged});
+
+  final bool value;
+  final ValueChanged<bool?>? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+        borderRadius: BorderRadius.circular(AppSizes.radiusMd),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Data collection notice',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'HandyMarket collects your personal details, contact information, service background, and valid ID details only for provider verification and safety review by the Super Admin. Your ID details will not be shown to customers.',
+            style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
+          ),
+          const SizedBox(height: 10),
+          CheckboxListTile(
+            contentPadding: EdgeInsets.zero,
+            controlAffinity: ListTileControlAffinity.leading,
+            value: value,
+            onChanged: onChanged,
+            title: const Text(
+              'I confirm that the information I provided is true and I consent to HandyMarket collecting and processing my personal data for provider verification.',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _ResponsiveFieldRow extends StatelessWidget {
   const _ResponsiveFieldRow({required this.children});
@@ -664,60 +721,6 @@ class _ResponsiveFieldRow extends StatelessWidget {
           ],
         );
       },
-    );
-  }
-}
-
-class _UploadButton extends StatelessWidget {
-  const _UploadButton({
-    required this.label,
-    required this.isPicking,
-    required this.onPressed,
-    this.value,
-    this.requiredLabel = false,
-    this.hasExisting = false,
-  });
-
-  final String label;
-  final String? value;
-  final bool requiredLabel;
-  final bool hasExisting;
-  final bool isPicking;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final detail = value?.trim().isNotEmpty == true
-        ? value!
-        : hasExisting
-        ? 'Existing image uploaded'
-        : requiredLabel
-        ? 'Required'
-        : 'Optional';
-
-    return OutlinedButton(
-      onPressed: isPicking ? null : onPressed,
-      child: Row(
-        mainAxisSize: MainAxisSize.max,
-        children: [
-          if (isPicking)
-            const SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-          else
-            const Icon(Icons.upload_file_outlined),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              '$label - $detail',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

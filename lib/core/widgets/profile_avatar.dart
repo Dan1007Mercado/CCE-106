@@ -7,12 +7,10 @@ class ProfileAvatar extends StatelessWidget {
     required this.name,
     super.key,
     this.radius = 20,
-    this.imageProvider,
   });
 
   final String name;
   final double radius;
-  final ImageProvider<Object>? imageProvider;
 
   @override
   Widget build(BuildContext context) {
@@ -28,7 +26,6 @@ class ProfileAvatar extends StatelessWidget {
       child: CircleAvatar(
         radius: radius,
         backgroundColor: avatarBackground,
-        foregroundImage: imageProvider,
         child: Text(
           initials,
           style: theme.textTheme.titleMedium?.copyWith(

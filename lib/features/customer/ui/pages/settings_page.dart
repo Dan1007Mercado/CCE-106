@@ -13,7 +13,9 @@ import '../../../auth/data/models/user_model.dart';
 import '../../data/services/customer_service.dart';
 
 class SettingsPage extends StatefulWidget {
-  const SettingsPage({super.key});
+  const SettingsPage({super.key, this.title = 'Settings'});
+
+  final String title;
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -24,14 +26,12 @@ class _SettingsPageState extends State<SettingsPage> {
   final DevicePermissionService _permissionService = DevicePermissionService();
   final LocationService _locationService = LocationService();
 
-  UserPermissionStatus? _photosPermission;
   UserPermissionStatus? _notificationsPermission;
   UserPermissionStatus? _locationPermission;
 
   bool _didLoadDeviceStatuses = false;
   bool _isUpdatingTheme = false;
   bool _isRefreshingStatuses = false;
-  bool _isUpdatingPhotos = false;
   bool _isUpdatingNotifications = false;
   bool _isUpdatingLocation = false;
 
@@ -42,7 +42,6 @@ class _SettingsPageState extends State<SettingsPage> {
 
     if (!_didLoadDeviceStatuses && user != null) {
       _didLoadDeviceStatuses = true;
-      _photosPermission = user.photosPermission;
       _notificationsPermission = user.notificationsPermission;
       _locationPermission = user.locationPermission;
       _refreshDeviceStatuses();
@@ -61,7 +60,7 @@ class _SettingsPageState extends State<SettingsPage> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      appBar: AppBar(title: Text(widget.title)),
       body: ListView(
         padding: const EdgeInsets.all(AppSizes.pagePadding),
         children: [
@@ -131,22 +130,12 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                   const SizedBox(height: 10),
                   Text(
-                    'These permissions control real app behavior for photo upload, push alerts, and GPS-based booking.',
+                    'These permissions control push alerts and GPS-based booking.',
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: secondaryText,
                     ),
                   ),
                   const SizedBox(height: 18),
-                  _PermissionTile(
-                    title: 'Photos',
-                    subtitle:
-                        'Required before the app can pick and upload a profile image.',
-                    status: _photosPermission ?? user.photosPermission,
-                    isLoading: _isUpdatingPhotos,
-                    onPressed: () => _requestPhotosPermission(user),
-                    onOpenSettings: _openDeviceSettings,
-                  ),
-                  const SizedBox(height: 12),
                   _PermissionTile(
                     title: 'Notifications',
                     subtitle:
@@ -231,7 +220,6 @@ class _SettingsPageState extends State<SettingsPage> {
     });
 
     try {
-      final photos = await _permissionService.getPhotosPermissionStatus();
       final notifications = await _permissionService
           .getNotificationsPermissionStatus();
       final location = await _locationService.getPermissionStatus();
@@ -241,7 +229,6 @@ class _SettingsPageState extends State<SettingsPage> {
       }
 
       setState(() {
-        _photosPermission = photos;
         _notificationsPermission = notifications;
         _locationPermission = location;
       });
@@ -288,39 +275,6 @@ class _SettingsPageState extends State<SettingsPage> {
       if (mounted) {
         setState(() {
           _isUpdatingTheme = false;
-        });
-      }
-    }
-  }
-
-  Future<void> _requestPhotosPermission(UserModel currentUser) async {
-    setState(() {
-      _isUpdatingPhotos = true;
-    });
-
-    try {
-      final status = await _permissionService.requestPhotosPermission();
-      await _persistPermissionUpdate(
-        currentUser: currentUser,
-        photosPermission: status,
-      );
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _photosPermission = status;
-      });
-      _showPermissionFeedback(
-        status,
-        grantedMessage: 'Photo access updated.',
-        deniedMessage:
-            'Photo upload stays unavailable until gallery access is granted.',
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isUpdatingPhotos = false;
         });
       }
     }
@@ -394,7 +348,6 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future<void> _persistPermissionUpdate({
     required UserModel currentUser,
-    UserPermissionStatus? photosPermission,
     UserPermissionStatus? notificationsPermission,
     UserPermissionStatus? locationPermission,
   }) async {
@@ -402,7 +355,6 @@ class _SettingsPageState extends State<SettingsPage> {
       final latestUser = context.read<AuthBloc>().state.user ?? currentUser;
       final updatedUser = await _customerService.updateUserPreferences(
         currentUser: latestUser,
-        photosPermission: photosPermission,
         notificationsPermission: notificationsPermission,
         locationPermission: locationPermission,
       );

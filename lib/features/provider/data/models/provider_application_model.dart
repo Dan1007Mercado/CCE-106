@@ -22,15 +22,18 @@ class ProviderApplicationModel extends Equatable {
     required this.city,
     required this.province,
     required this.validIdType,
+    required this.validIdNumber,
+    required this.validIdDetails,
+    required this.maskedValidIdNumber,
     required this.skillCategory,
     required this.experienceYears,
     required this.serviceDescription,
     required this.previousWorkDescription,
     required this.serviceLocationCoverage,
     required this.expectedRate,
-    required this.validIdFrontUrl,
-    required this.validIdBackUrl,
-    required this.selfieWithIdUrl,
+    required this.verificationConsentAccepted,
+    required this.verificationConsentAcceptedAt,
+    required this.dataPrivacyNoticeVersion,
     required this.status,
     required this.adminRemarks,
     required this.reviewedBy,
@@ -58,15 +61,18 @@ class ProviderApplicationModel extends Equatable {
   final String city;
   final String province;
   final String validIdType;
+  final String validIdNumber;
+  final String validIdDetails;
+  final String maskedValidIdNumber;
   final String skillCategory;
   final int experienceYears;
   final String serviceDescription;
   final String previousWorkDescription;
   final String serviceLocationCoverage;
   final double? expectedRate;
-  final String validIdFrontUrl;
-  final String validIdBackUrl;
-  final String selfieWithIdUrl;
+  final bool verificationConsentAccepted;
+  final DateTime? verificationConsentAcceptedAt;
+  final String dataPrivacyNoticeVersion;
   final String status;
   final String adminRemarks;
   final String reviewedBy;
@@ -86,6 +92,10 @@ class ProviderApplicationModel extends Equatable {
   ) {
     final providerName = map['providerName'] as String? ?? '';
     final fullName = map['fullName'] as String? ?? providerName;
+    final validIdNumber = map['validIdNumber'] as String? ?? '';
+    final maskedValidIdNumber =
+        map['maskedValidIdNumber'] as String? ??
+        maskValidIdNumber(validIdNumber);
 
     return ProviderApplicationModel(
       applicationId: map['applicationId'] as String? ?? documentId,
@@ -107,15 +117,22 @@ class ProviderApplicationModel extends Equatable {
       city: map['city'] as String? ?? '',
       province: map['province'] as String? ?? '',
       validIdType: map['validIdType'] as String? ?? '',
+      validIdNumber: validIdNumber,
+      validIdDetails: map['validIdDetails'] as String? ?? '',
+      maskedValidIdNumber: maskedValidIdNumber,
       skillCategory: map['skillCategory'] as String? ?? '',
       experienceYears: _readInt(map['experienceYears']),
       serviceDescription: map['serviceDescription'] as String? ?? '',
       previousWorkDescription: map['previousWorkDescription'] as String? ?? '',
       serviceLocationCoverage: map['serviceLocationCoverage'] as String? ?? '',
       expectedRate: _readNullableDouble(map['expectedRate']),
-      validIdFrontUrl: map['validIdFrontUrl'] as String? ?? '',
-      validIdBackUrl: map['validIdBackUrl'] as String? ?? '',
-      selfieWithIdUrl: map['selfieWithIdUrl'] as String? ?? '',
+      verificationConsentAccepted:
+          map['verificationConsentAccepted'] == true,
+      verificationConsentAcceptedAt: _readDateTime(
+        map['verificationConsentAcceptedAt'],
+      ),
+      dataPrivacyNoticeVersion:
+          map['dataPrivacyNoticeVersion'] as String? ?? '',
       status: map['status'] as String? ?? 'pending',
       adminRemarks: map['adminRemarks'] as String? ?? '',
       reviewedBy: map['reviewedBy'] as String? ?? '',
@@ -191,15 +208,18 @@ class ProviderApplicationModel extends Equatable {
     city,
     province,
     validIdType,
+    validIdNumber,
+    validIdDetails,
+    maskedValidIdNumber,
     skillCategory,
     experienceYears,
     serviceDescription,
     previousWorkDescription,
     serviceLocationCoverage,
     expectedRate,
-    validIdFrontUrl,
-    validIdBackUrl,
-    selfieWithIdUrl,
+    verificationConsentAccepted,
+    verificationConsentAcceptedAt,
+    dataPrivacyNoticeVersion,
     status,
     adminRemarks,
     reviewedBy,
@@ -207,4 +227,15 @@ class ProviderApplicationModel extends Equatable {
     updatedAt,
     reviewedAt,
   ];
+}
+
+String maskValidIdNumber(String value) {
+  final cleaned = value.trim();
+  if (cleaned.isEmpty) {
+    return '';
+  }
+
+  final visibleLength = cleaned.length < 4 ? cleaned.length : 4;
+  final visibleSuffix = cleaned.substring(cleaned.length - visibleLength);
+  return '****$visibleSuffix';
 }

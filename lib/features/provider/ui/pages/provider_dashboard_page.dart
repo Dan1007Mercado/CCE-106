@@ -76,10 +76,14 @@ class _ProviderDashboardPageState extends State<ProviderDashboardPage> {
             icon: ProfileAvatar(
               radius: 14,
               name: user.displayName,
-              imageProvider: user.profilePic.trim().isEmpty
-                  ? null
-                  : NetworkImage(user.profilePic),
             ),
+          ),
+          IconButton(
+            tooltip: 'Settings',
+            onPressed: () {
+              Navigator.of(context).pushNamed(AppRouter.providerSettingsRoute);
+            },
+            icon: const Icon(Icons.settings_outlined),
           ),
           IconButton(
             tooltip: 'Sign out',
@@ -1229,21 +1233,6 @@ class _OpenJobRequestTile extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (job.photoUrl.trim().isNotEmpty) ...[
-          ClipRRect(
-            borderRadius: BorderRadius.circular(AppSizes.radiusMd),
-            child: Image.network(
-              job.photoUrl,
-              height: 180,
-              width: double.infinity,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) {
-                return const SizedBox.shrink();
-              },
-            ),
-          ),
-          const SizedBox(height: 14),
-        ],
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
