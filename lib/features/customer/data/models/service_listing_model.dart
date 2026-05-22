@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ServiceListingModel extends Equatable {
   const ServiceListingModel({
@@ -12,6 +13,8 @@ class ServiceListingModel extends Equatable {
     required this.location,
     required this.price,
     required this.rating,
+    required this.status,
+    required this.providerVerificationStatus,
     required this.createdAt,
   });
 
@@ -25,6 +28,8 @@ class ServiceListingModel extends Equatable {
   final String location;
   final double price;
   final double rating;
+  final String status;
+  final String providerVerificationStatus;
   final DateTime createdAt;
 
   factory ServiceListingModel.fromMap(
@@ -46,6 +51,9 @@ class ServiceListingModel extends Equatable {
       location: map['location'] as String? ?? '',
       price: _readDouble(map['price']),
       rating: _readDouble(map['rating']),
+      status: map['status'] as String? ?? 'active',
+      providerVerificationStatus:
+          map['providerVerificationStatus'] as String? ?? '',
       createdAt:
           _readDateTime(map['createdAt']) ??
           DateTime.fromMillisecondsSinceEpoch(0),
@@ -69,15 +77,11 @@ class ServiceListingModel extends Equatable {
       return value;
     }
 
-    final toDate = (value as dynamic).toDate;
-    if (toDate is Function) {
-      final result = toDate();
-      if (result is DateTime) {
-        return result;
-      }
+    if (value is Timestamp) {
+      return value.toDate();
     }
 
-    return null;
+    return DateTime.tryParse(value.toString());
   }
 
   @override
@@ -92,6 +96,8 @@ class ServiceListingModel extends Equatable {
     location,
     price,
     rating,
+    status,
+    providerVerificationStatus,
     createdAt,
   ];
 }

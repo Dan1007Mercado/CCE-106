@@ -20,7 +20,18 @@ import '../../../auth/data/models/user_model.dart';
 import '../../data/services/customer_service.dart';
 
 class EditProfilePage extends StatefulWidget {
-  const EditProfilePage({super.key});
+  const EditProfilePage({
+    super.key,
+    this.title = 'Manage profile',
+    this.locationDescription =
+        'Bookings require device GPS coordinates. You can still enter a fallback address if location access is denied.',
+    this.locationUpdatedMessage =
+        'Profile updated. Capture GPS location to unlock booking.',
+  });
+
+  final String title;
+  final String locationDescription;
+  final String locationUpdatedMessage;
 
   @override
   State<EditProfilePage> createState() => _EditProfilePageState();
@@ -96,7 +107,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Manage profile')),
+      appBar: AppBar(title: Text(widget.title)),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(AppSizes.pagePadding),
         child: Form(
@@ -247,7 +258,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                       ),
                       const SizedBox(height: 10),
                       Text(
-                        'Bookings require device GPS coordinates. You can still enter a fallback address if location access is denied.',
+                        widget.locationDescription,
                         style: theme.textTheme.bodyMedium?.copyWith(
                           color: theme.textTheme.bodyMedium?.color?.withValues(
                             alpha: 0.74,
@@ -580,7 +591,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
         context,
         updatedUser.hasBookingLocation
             ? 'Profile updated.'
-            : 'Profile updated. Capture GPS location to unlock booking.',
+            : widget.locationUpdatedMessage,
       );
       Navigator.of(context).pop();
     } catch (error) {

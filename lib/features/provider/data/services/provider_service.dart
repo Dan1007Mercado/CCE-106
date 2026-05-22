@@ -14,6 +14,9 @@ class ProviderService {
   CollectionReference<Map<String, dynamic>> get _servicesCollection =>
       _firestore.collection('services');
 
+  CollectionReference<Map<String, dynamic>> get _usersCollection =>
+      _firestore.collection('users');
+
   CollectionReference<Map<String, dynamic>> get _bookingsCollection =>
       _firestore.collection('bookings');
 
@@ -121,6 +124,12 @@ class ProviderService {
       throw Exception('Only service providers can publish service listings.');
     }
 
+    await _assertProviderApproved(
+      provider.uid,
+      fallbackStatus: provider.providerVerificationStatus,
+      fallbackVerified: provider.verifiedProvider,
+    );
+
     if (title.trim().isEmpty ||
         category.trim().isEmpty ||
         description.trim().isEmpty ||
@@ -138,6 +147,7 @@ class ProviderService {
       'providerId': provider.uid,
       'providerName': provider.displayName,
       'providerPhone': provider.phone.trim(),
+      'providerVerificationStatus': 'approved',
       'category': category.trim(),
       'title': title.trim(),
       'description': description.trim(),
@@ -148,6 +158,89 @@ class ProviderService {
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
+  }
+
+  Future<void> updateServiceListing({
+    required String serviceId,
+    required String providerId,
+    required String title,
+    required String category,
+    required String description,
+    required String location,
+    required double price,
+  }) async {
+    await _assertProviderApproved(providerId);
+    final doc = await _servicesCollection.doc(serviceId).get();
+    final service = doc.data();
+    if (!doc.exists || service == null) {
+      throw Exception('Service listing not found.');
+    }
+
+    if (service['providerId'] != providerId) {
+      throw Exception('You can only edit your own services.');
+    }
+
+    if (title.trim().isEmpty ||
+        category.trim().isEmpty ||
+        description.trim().isEmpty ||
+        location.trim().isEmpty) {
+      throw Exception('Complete all listing fields before saving.');
+    }
+
+    if (price <= 0) {
+      throw Exception('Enter a valid service price.');
+    }
+
+    await doc.reference.set({
+      'title': title.trim(),
+      'category': category.trim(),
+      'description': description.trim(),
+      'location': location.trim(),
+      'price': price,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  Future<void> setServiceActive({
+    required String serviceId,
+    required String providerId,
+    required bool isActive,
+  }) async {
+    final doc = await _servicesCollection.doc(serviceId).get();
+    final service = doc.data();
+    if (!doc.exists || service == null) {
+      throw Exception('Service listing not found.');
+    }
+
+    if (service['providerId'] != providerId) {
+      throw Exception('You can only update your own services.');
+    }
+
+    if (isActive) {
+      await _assertProviderApproved(providerId);
+    }
+
+    await doc.reference.set({
+      'status': isActive ? 'active' : 'inactive',
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  Future<void> deleteServiceListing({
+    required String serviceId,
+    required String providerId,
+  }) async {
+    final doc = await _servicesCollection.doc(serviceId).get();
+    final service = doc.data();
+    if (!doc.exists || service == null) {
+      throw Exception('Service listing not found.');
+    }
+
+    if (service['providerId'] != providerId) {
+      throw Exception('You can only delete your own services.');
+    }
+
+    await doc.reference.delete();
   }
 
   Future<void> updateBookingStatus({
@@ -176,6 +269,19 @@ class ProviderService {
           ? null
           : await transaction.get(lockRefs.duplicateLockRef!);
       final normalizedStatus = status.trim();
+      if (normalizedStatus == 'accepted') {
+        final providerId = booking['providerId'] as String? ?? '';
+        if (providerId.isEmpty) {
+          throw Exception('Provider record not found.');
+        }
+        final providerSnapshot = await transaction.get(
+          _usersCollection.doc(providerId),
+        );
+        _assertProviderApprovedFromData(
+          providerSnapshot.data(),
+          blockedMessage: 'Only approved providers can accept bookings.',
+        );
+      }
 
       transaction.set(bookingRef, {
         'status': normalizedStatus,
@@ -223,6 +329,11 @@ class ProviderService {
       if (booking == null || booking['providerId'] != providerId) {
         throw Exception('You can only complete your own booking.');
       }
+
+      final providerSnapshot = await transaction.get(
+        _usersCollection.doc(providerId),
+      );
+      _assertProviderApprovedFromData(providerSnapshot.data());
 
       final paymentId = booking['paymentId'] as String?;
       if (paymentId == null || paymentId.isEmpty) {
@@ -425,6 +536,56 @@ class ProviderService {
 
   static String _safeDocumentId(String value) {
     return value.replaceAll(RegExp(r'[/#?\[\]*]'), '_');
+  }
+
+  Future<void> _assertProviderApproved(
+    String providerId, {
+    String? fallbackStatus,
+    bool? fallbackVerified,
+    String? blockedMessage,
+  }) async {
+    final snapshot = await _usersCollection.doc(providerId).get();
+    final data = snapshot.data();
+    _assertProviderApprovedFromData(
+      data,
+      fallbackStatus: fallbackStatus,
+      fallbackVerified: fallbackVerified,
+      blockedMessage: blockedMessage,
+    );
+  }
+
+  static void _assertProviderApprovedFromData(
+    Map<String, dynamic>? data, {
+    String? fallbackStatus,
+    bool? fallbackVerified,
+    String? blockedMessage,
+  }) {
+    final status =
+        data?['providerVerificationStatus'] as String? ??
+        fallbackStatus ??
+        (data?['verifiedProvider'] == true ? 'approved' : 'no_application');
+    final verified = data?['verifiedProvider'] as bool? ?? fallbackVerified;
+    final normalizedStatus = status.trim().toLowerCase();
+
+    if (verified == true && normalizedStatus == 'approved') {
+      return;
+    }
+
+    if (blockedMessage != null) {
+      throw Exception(blockedMessage);
+    }
+
+    throw Exception(_verificationMessage(normalizedStatus));
+  }
+
+  static String _verificationMessage(String status) {
+    return switch (status) {
+      'pending' => 'Your application is still pending Super Admin approval.',
+      'rejected' =>
+        'Your provider application was rejected. Please review the admin remarks and resubmit.',
+      _ =>
+        'Submit a provider verification application before posting services or accepting bookings.',
+    };
   }
 }
 

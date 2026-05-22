@@ -38,6 +38,7 @@ class CustomerService {
               .map((doc) => ServiceListingModel.fromMap(doc.data(), doc.id))
               .where(
                 (service) =>
+                    service.status.trim().toLowerCase() == 'active' &&
                     _matchesCategory(service.category, category) &&
                     (minRating == null || service.rating >= minRating),
               )
@@ -393,15 +394,11 @@ class CustomerService {
       return value;
     }
 
-    final toDate = (value as dynamic).toDate;
-    if (toDate is Function) {
-      final result = toDate();
-      if (result is DateTime) {
-        return result;
-      }
+    if (value is Timestamp) {
+      return value.toDate();
     }
 
-    return null;
+    return DateTime.tryParse(value.toString());
   }
 
   String _formatDateTime(DateTime value) {

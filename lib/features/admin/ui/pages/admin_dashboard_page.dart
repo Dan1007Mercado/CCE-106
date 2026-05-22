@@ -2,15 +2,31 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/constants/app_sizes.dart';
+import '../../../../core/services/notification_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/helpers.dart';
 import '../../../../core/widgets/custom_button.dart';
 import '../../../../core/widgets/loading_indicator.dart';
+import '../../../../core/widgets/profile_avatar.dart';
 import '../../../auth/bloc/auth_bloc.dart';
 import '../../../auth/bloc/auth_event.dart';
 import '../../../auth/data/models/user_model.dart';
+import '../../../customer/data/models/service_listing_model.dart';
+import '../../../provider/data/models/provider_application_model.dart';
+import '../../../provider/data/models/provider_booking_model.dart';
 import '../../data/models/admin_dashboard_models.dart';
 import '../../data/services/admin_service.dart';
+
+enum _AdminSection {
+  overview,
+  users,
+  applications,
+  services,
+  bookings,
+  revenue,
+  terms,
+  notifications,
+}
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
@@ -27,8 +43,10 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         'HandyMarket connects customers with verified service providers. Users must provide accurate account, booking, payment, and service information.',
   );
 
+  _AdminSection _selectedSection = _AdminSection.overview;
   String _searchQuery = '';
   bool _isSavingTerms = false;
+  bool _didLoadTerms = false;
 
   @override
   void initState() {
@@ -49,9 +67,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
   @override
   Widget build(BuildContext context) {
-    final user = context.select((AuthBloc bloc) => bloc.state.user);
+    final admin = context.select((AuthBloc bloc) => bloc.state.user);
 
-    if (user == null) {
+    if (admin == null) {
       return const Scaffold(
         body: Center(
           child: LoadingIndicator(message: 'Loading admin dashboard...'),
@@ -59,53 +77,99 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       );
     }
 
-    if (user.role != AppUserRole.admin) {
-      return _AccessDenied(user: user);
+    if (admin.role != AppUserRole.admin) {
+      return _AccessDenied(user: admin);
     }
 
     return StreamBuilder<List<AdminUserAccountModel>>(
       stream: _adminService.streamUsers(),
-      builder: (context, userSnapshot) {
+      builder: (context, usersSnapshot) {
         return StreamBuilder<List<ProviderApplicationModel>>(
           stream: _adminService.streamProviderApplications(),
-          builder: (context, applicationSnapshot) {
-            return StreamBuilder<List<AdminPaymentModel>>(
-              stream: _adminService.streamPayments(),
-              builder: (context, paymentSnapshot) {
-                final isLoading =
-                    userSnapshot.connectionState == ConnectionState.waiting &&
-                    !userSnapshot.hasData;
+          builder: (context, applicationsSnapshot) {
+            return StreamBuilder<List<ServiceListingModel>>(
+              stream: _adminService.streamServices(),
+              builder: (context, servicesSnapshot) {
+                return StreamBuilder<List<ProviderBookingModel>>(
+                  stream: _adminService.streamBookings(),
+                  builder: (context, bookingsSnapshot) {
+                    return StreamBuilder<List<AdminPaymentModel>>(
+                      stream: _adminService.streamPayments(),
+                      builder: (context, paymentsSnapshot) {
+                        return StreamBuilder<List<AppNotificationModel>>(
+                          stream: _adminService.streamAdminNotifications(),
+                          builder: (context, notificationsSnapshot) {
+                            return StreamBuilder<AdminTermsModel?>(
+                              stream: _adminService.streamTerms(),
+                              builder: (context, termsSnapshot) {
+                                final isLoading =
+                                    usersSnapshot.connectionState ==
+                                        ConnectionState.waiting &&
+                                    !usersSnapshot.hasData;
+                                if (isLoading) {
+                                  return const Scaffold(
+                                    body: Center(
+                                      child: LoadingIndicator(
+                                        message: 'Loading admin dashboard...',
+                                      ),
+                                    ),
+                                  );
+                                }
 
-                if (isLoading) {
-                  return const Scaffold(
-                    body: Center(
-                      child: LoadingIndicator(
-                        message: 'Loading admin dashboard...',
-                      ),
-                    ),
-                  );
-                }
+                                final terms = termsSnapshot.data;
+                                if (!_didLoadTerms && terms != null) {
+                                  _didLoadTerms = true;
+                                  _termsController.text = terms.body;
+                                }
 
-                final users = _filterUsers(userSnapshot.data ?? const []);
-                final applications = _filterApplications(
-                  applicationSnapshot.data ?? const [],
-                );
-                final payments = paymentSnapshot.data ?? const [];
-
-                return _AdminShell(
-                  admin: user,
-                  searchController: _searchController,
-                  users: users,
-                  applications: applications,
-                  payments: payments,
-                  isSavingTerms: _isSavingTerms,
-                  termsController: _termsController,
-                  onSignOut: () {
-                    context.read<AuthBloc>().add(const AuthSignOutRequested());
+                                return _AdminPanel(
+                                  admin: admin,
+                                  selectedSection: _selectedSection,
+                                  searchController: _searchController,
+                                  users: _filterUsers(
+                                    usersSnapshot.data ?? const [],
+                                  ),
+                                  applications: _filterApplications(
+                                    applicationsSnapshot.data ?? const [],
+                                  ),
+                                  services: _filterServices(
+                                    servicesSnapshot.data ?? const [],
+                                  ),
+                                  bookings: _filterBookings(
+                                    bookingsSnapshot.data ?? const [],
+                                  ),
+                                  payments: paymentsSnapshot.data ?? const [],
+                                  notifications:
+                                      notificationsSnapshot.data ?? const [],
+                                  terms: terms,
+                                  termsController: _termsController,
+                                  isSavingTerms: _isSavingTerms,
+                                  onSelectSection: (section) {
+                                    setState(() {
+                                      _selectedSection = section;
+                                    });
+                                  },
+                                  onSignOut: () {
+                                    context.read<AuthBloc>().add(
+                                      const AuthSignOutRequested(),
+                                    );
+                                  },
+                                  onToggleUserSuspension: _toggleUserSuspension,
+                                  onReviewApplication: (application, status) =>
+                                      _reviewApplication(
+                                        admin,
+                                        application,
+                                        status,
+                                      ),
+                                  onSaveTerms: _saveTerms,
+                                );
+                              },
+                            );
+                          },
+                        );
+                      },
+                    );
                   },
-                  onToggleUserSuspension: _toggleUserSuspension,
-                  onReviewApplication: _reviewApplication,
-                  onSaveTerms: _saveTerms,
                 );
               },
             );
@@ -123,7 +187,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     return users.where((account) {
       final user = account.user;
       final source =
-          '${user.displayName} ${user.email} ${user.role.label} ${account.status}'
+          '${user.displayName} ${user.email} ${user.role.label} ${account.status} ${user.providerVerificationStatus}'
               .toLowerCase();
       return source.contains(_searchQuery);
     }).toList();
@@ -138,7 +202,37 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
     return applications.where((application) {
       final source =
-          '${application.providerName} ${application.skillCategory} ${application.status}'
+          '${application.fullName} ${application.providerEmail} ${application.skillCategory} ${application.status}'
+              .toLowerCase();
+      return source.contains(_searchQuery);
+    }).toList();
+  }
+
+  List<ServiceListingModel> _filterServices(
+    List<ServiceListingModel> services,
+  ) {
+    if (_searchQuery.isEmpty) {
+      return services;
+    }
+
+    return services.where((service) {
+      final source =
+          '${service.title} ${service.providerName} ${service.category} ${service.status}'
+              .toLowerCase();
+      return source.contains(_searchQuery);
+    }).toList();
+  }
+
+  List<ProviderBookingModel> _filterBookings(
+    List<ProviderBookingModel> bookings,
+  ) {
+    if (_searchQuery.isEmpty) {
+      return bookings;
+    }
+
+    return bookings.where((booking) {
+      final source =
+          '${booking.bookingId} ${booking.customerName} ${booking.providerName} ${booking.serviceTitle} ${booking.status} ${booking.paymentStatus}'
               .toLowerCase();
       return source.contains(_searchQuery);
     }).toList();
@@ -149,6 +243,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       await _adminService.setUserSuspended(
         uid: account.user.uid,
         suspended: !account.isSuspended,
+        currentAdminId: context.read<AuthBloc>().state.user?.uid,
       );
 
       if (!mounted) {
@@ -173,16 +268,57 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   }
 
   Future<void> _reviewApplication(
+    UserModel admin,
     ProviderApplicationModel application,
     String status,
   ) async {
+    final remarksController = TextEditingController(
+      text: status == 'approved'
+          ? 'Provider verification approved.'
+          : application.adminRemarks,
+    );
+    final remarks = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text(
+            status == 'approved' ? 'Approve application' : 'Reject application',
+          ),
+          content: TextField(
+            controller: remarksController,
+            minLines: 3,
+            maxLines: 5,
+            decoration: const InputDecoration(
+              labelText: 'Admin remarks',
+              alignLabelWithHint: true,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () =>
+                  Navigator.of(dialogContext).pop(remarksController.text),
+              child: Text(status == 'approved' ? 'Approve' : 'Reject'),
+            ),
+          ],
+        );
+      },
+    );
+    remarksController.dispose();
+
+    if (remarks == null) {
+      return;
+    }
+
     try {
       await _adminService.reviewProviderApplication(
         applicationId: application.applicationId,
         status: status,
-        adminRemarks: status == 'approved'
-            ? 'Skill application approved.'
-            : 'Skill application rejected. Please submit clearer proof.',
+        reviewedBy: admin.uid,
+        adminRemarks: remarks,
       );
 
       if (!mounted) {
@@ -241,15 +377,21 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   }
 }
 
-class _AdminShell extends StatelessWidget {
-  const _AdminShell({
+class _AdminPanel extends StatelessWidget {
+  const _AdminPanel({
     required this.admin,
+    required this.selectedSection,
     required this.searchController,
     required this.users,
     required this.applications,
+    required this.services,
+    required this.bookings,
     required this.payments,
-    required this.isSavingTerms,
+    required this.notifications,
+    required this.terms,
     required this.termsController,
+    required this.isSavingTerms,
+    required this.onSelectSection,
     required this.onSignOut,
     required this.onToggleUserSuspension,
     required this.onReviewApplication,
@@ -257,12 +399,18 @@ class _AdminShell extends StatelessWidget {
   });
 
   final UserModel admin;
+  final _AdminSection selectedSection;
   final TextEditingController searchController;
   final List<AdminUserAccountModel> users;
   final List<ProviderApplicationModel> applications;
+  final List<ServiceListingModel> services;
+  final List<ProviderBookingModel> bookings;
   final List<AdminPaymentModel> payments;
-  final bool isSavingTerms;
+  final List<AppNotificationModel> notifications;
+  final AdminTermsModel? terms;
   final TextEditingController termsController;
+  final bool isSavingTerms;
+  final ValueChanged<_AdminSection> onSelectSection;
   final VoidCallback onSignOut;
   final ValueChanged<AdminUserAccountModel> onToggleUserSuspension;
   final void Function(ProviderApplicationModel application, String status)
@@ -271,212 +419,103 @@ class _AdminShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isDesktop = constraints.maxWidth >= 1000;
-        final content = _AdminContent(
-          admin: admin,
-          searchController: searchController,
-          users: users,
-          applications: applications,
-          payments: payments,
-          isDesktop: isDesktop,
-          isSavingTerms: isSavingTerms,
-          termsController: termsController,
-          onSignOut: onSignOut,
-          onToggleUserSuspension: onToggleUserSuspension,
-          onReviewApplication: onReviewApplication,
-          onSaveTerms: onSaveTerms,
-        );
-
-        if (!isDesktop) {
-          return Scaffold(
-            appBar: AppBar(
-              title: const Text('Super Admin'),
-              actions: [
-                IconButton(
-                  tooltip: 'Sign out',
-                  onPressed: onSignOut,
-                  icon: const Icon(Icons.logout_rounded),
+    final theme = Theme.of(context);
+    return Scaffold(
+      backgroundColor: theme.colorScheme.surfaceContainerHighest.withValues(
+        alpha: 0.35,
+      ),
+      body: Row(
+        children: [
+          _AdminSidebar(
+            admin: admin,
+            selectedSection: selectedSection,
+            onSelectSection: onSelectSection,
+            onSignOut: onSignOut,
+          ),
+          Expanded(
+            child: Column(
+              children: [
+                _AdminTopBar(
+                  admin: admin,
+                  searchController: searchController,
+                  onSignOut: onSignOut,
+                ),
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(28),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 1400),
+                      child: _sectionWidget(context),
+                    ),
+                  ),
                 ),
               ],
             ),
-            body: content,
-          );
-        }
-
-        return Scaffold(
-          body: Row(
-            children: [
-              _AdminSidebar(admin: admin, onSignOut: onSignOut),
-              Expanded(child: content),
-            ],
           ),
-        );
-      },
-    );
-  }
-}
-
-class _AdminContent extends StatelessWidget {
-  const _AdminContent({
-    required this.admin,
-    required this.searchController,
-    required this.users,
-    required this.applications,
-    required this.payments,
-    required this.isDesktop,
-    required this.isSavingTerms,
-    required this.termsController,
-    required this.onSignOut,
-    required this.onToggleUserSuspension,
-    required this.onReviewApplication,
-    required this.onSaveTerms,
-  });
-
-  final UserModel admin;
-  final TextEditingController searchController;
-  final List<AdminUserAccountModel> users;
-  final List<ProviderApplicationModel> applications;
-  final List<AdminPaymentModel> payments;
-  final bool isDesktop;
-  final bool isSavingTerms;
-  final TextEditingController termsController;
-  final VoidCallback onSignOut;
-  final ValueChanged<AdminUserAccountModel> onToggleUserSuspension;
-  final void Function(ProviderApplicationModel application, String status)
-  onReviewApplication;
-  final VoidCallback onSaveTerms;
-
-  @override
-  Widget build(BuildContext context) {
-    final pendingApplications = applications
-        .where((application) => application.status == 'pending')
-        .length;
-    final customers = users
-        .where((account) => account.user.role == AppUserRole.customer)
-        .length;
-    final providers = users
-        .where((account) => account.user.role == AppUserRole.service)
-        .length;
-    final platformRevenue = payments
-        .where((payment) => payment.status == 'paid')
-        .fold<double>(
-          0,
-          (sum, payment) => sum + payment.platformCommissionAmount,
-        );
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(AppSizes.pagePadding),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1280),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _AdminTopHeader(
-                admin: admin,
-                searchController: searchController,
-                onSignOut: onSignOut,
-                isDesktop: isDesktop,
-              ),
-              const SizedBox(height: AppSizes.sectionGap),
-              _AdminHero(admin: admin),
-              const SizedBox(height: AppSizes.sectionGap),
-              _MetricGrid(
-                isDesktop: isDesktop,
-                metrics: [
-                  _DashboardMetric(
-                    icon: Icons.group_outlined,
-                    label: 'Total users',
-                    value: users.length.toString(),
-                  ),
-                  _DashboardMetric(
-                    icon: Icons.person_outline_rounded,
-                    label: 'Customers',
-                    value: customers.toString(),
-                  ),
-                  _DashboardMetric(
-                    icon: Icons.engineering_outlined,
-                    label: 'Providers',
-                    value: providers.toString(),
-                  ),
-                  _DashboardMetric(
-                    icon: Icons.verified_user_outlined,
-                    label: 'Skill validations',
-                    value: pendingApplications.toString(),
-                  ),
-                  _DashboardMetric(
-                    icon: Icons.payments_outlined,
-                    label: 'Platform revenue',
-                    value: _formatCurrency(platformRevenue),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSizes.sectionGap),
-              _SkillValidationTable(
-                applications: applications,
-                onReviewApplication: onReviewApplication,
-              ),
-              const SizedBox(height: AppSizes.sectionGap),
-              _UserManagementTable(
-                currentAdminId: admin.uid,
-                users: users,
-                onToggleUserSuspension: onToggleUserSuspension,
-              ),
-              const SizedBox(height: AppSizes.sectionGap),
-              if (isDesktop)
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      flex: 3,
-                      child: _RevenueOverview(payments: payments),
-                    ),
-                    const SizedBox(width: AppSizes.sectionGap),
-                    Expanded(
-                      flex: 2,
-                      child: _PolicyManagementCard(
-                        termsController: termsController,
-                        isSavingTerms: isSavingTerms,
-                        onSaveTerms: onSaveTerms,
-                      ),
-                    ),
-                  ],
-                )
-              else ...[
-                _RevenueOverview(payments: payments),
-                const SizedBox(height: AppSizes.sectionGap),
-                _PolicyManagementCard(
-                  termsController: termsController,
-                  isSavingTerms: isSavingTerms,
-                  onSaveTerms: onSaveTerms,
-                ),
-              ],
-            ],
-          ),
-        ),
+        ],
       ),
     );
+  }
+
+  Widget _sectionWidget(BuildContext context) {
+    return switch (selectedSection) {
+      _AdminSection.overview => _OverviewSection(
+        users: users,
+        applications: applications,
+        bookings: bookings,
+        payments: payments,
+      ),
+      _AdminSection.users => _UsersSection(
+        currentAdminId: admin.uid,
+        users: users,
+        onToggleUserSuspension: onToggleUserSuspension,
+      ),
+      _AdminSection.applications => _ApplicationsSection(
+        applications: applications,
+        onReviewApplication: onReviewApplication,
+      ),
+      _AdminSection.services => _ServicesSection(services: services),
+      _AdminSection.bookings => _BookingsSection(bookings: bookings),
+      _AdminSection.revenue => _RevenueSection(payments: payments),
+      _AdminSection.terms => _TermsSection(
+        terms: terms,
+        termsController: termsController,
+        isSavingTerms: isSavingTerms,
+        onSaveTerms: onSaveTerms,
+      ),
+      _AdminSection.notifications => _NotificationsSection(
+        notifications: notifications,
+      ),
+    };
   }
 }
 
 class _AdminSidebar extends StatelessWidget {
-  const _AdminSidebar({required this.admin, required this.onSignOut});
+  const _AdminSidebar({
+    required this.admin,
+    required this.selectedSection,
+    required this.onSelectSection,
+    required this.onSignOut,
+  });
 
   final UserModel admin;
+  final _AdminSection selectedSection;
+  final ValueChanged<_AdminSection> onSelectSection;
   final VoidCallback onSignOut;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
     return Container(
-      width: 272,
-      padding: const EdgeInsets.all(22),
+      width: 276,
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
-        border: Border(right: BorderSide(color: theme.colorScheme.outline)),
+        border: Border(
+          right: BorderSide(
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.72),
+          ),
+        ),
       ),
       child: SafeArea(
         child: Column(
@@ -485,8 +524,8 @@ class _AdminSidebar extends StatelessWidget {
             Row(
               children: [
                 Container(
-                  width: 40,
-                  height: 40,
+                  width: 42,
+                  height: 42,
                   decoration: BoxDecoration(
                     color: theme.colorScheme.primary,
                     borderRadius: BorderRadius.circular(12),
@@ -499,33 +538,21 @@ class _AdminSidebar extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'HandyMarket',
+                    'Super Admin',
                     style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w900,
                     ),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 30),
-            const _SidebarItem(
-              icon: Icons.dashboard_outlined,
-              label: 'Overview',
-              selected: true,
-            ),
-            const _SidebarItem(
-              icon: Icons.verified_user_outlined,
-              label: 'Skill validation',
-            ),
-            const _SidebarItem(
-              icon: Icons.group_outlined,
-              label: 'User management',
-            ),
-            const _SidebarItem(icon: Icons.payments_outlined, label: 'Revenue'),
-            const _SidebarItem(
-              icon: Icons.policy_outlined,
-              label: 'Terms and policy',
-            ),
+            for (final item in _sidebarItems)
+              _SidebarButton(
+                item: item,
+                selected: selectedSection == item.section,
+                onTap: () => onSelectSection(item.section),
+              ),
             const Spacer(),
             Text(
               admin.displayName,
@@ -556,161 +583,581 @@ class _AdminSidebar extends StatelessWidget {
   }
 }
 
-class _SidebarItem extends StatelessWidget {
-  const _SidebarItem({
-    required this.icon,
-    required this.label,
-    this.selected = false,
-  });
-
-  final IconData icon;
-  final String label;
-  final bool selected;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final background = selected ? theme.tokens.primarySoft : Colors.transparent;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(AppSizes.radiusMd),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            icon,
-            color: selected
-                ? AppTheme.resolveOnColor(theme.tokens.primarySoft)
-                : theme.iconTheme.color,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              label,
-              style: TextStyle(
-                fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                color: selected
-                    ? AppTheme.resolveOnColor(theme.tokens.primarySoft)
-                    : null,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _AdminTopHeader extends StatelessWidget {
-  const _AdminTopHeader({
+class _AdminTopBar extends StatelessWidget {
+  const _AdminTopBar({
     required this.admin,
     required this.searchController,
     required this.onSignOut,
-    required this.isDesktop,
   });
 
   final UserModel admin;
   final TextEditingController searchController;
   final VoidCallback onSignOut;
-  final bool isDesktop;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
-    return Row(
-      children: [
-        Expanded(
-          child: TextField(
-            controller: searchController,
-            decoration: const InputDecoration(
-              hintText: 'Search users, providers, requests, status',
-              prefixIcon: Icon(Icons.search_rounded),
-            ),
+    return Container(
+      height: 84,
+      padding: const EdgeInsets.symmetric(horizontal: 28),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        border: Border(
+          bottom: BorderSide(
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.72),
           ),
         ),
-        if (isDesktop) ...[
-          const SizedBox(width: 16),
-          CircleAvatar(
-            backgroundColor: theme.tokens.primarySoft,
-            child: Icon(
-              Icons.person_outline_rounded,
-              color: AppTheme.resolveOnColor(theme.tokens.primarySoft),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: searchController,
+              decoration: const InputDecoration(
+                hintText: 'Search users, applications, services, bookings',
+                prefixIcon: Icon(Icons.search_rounded),
+              ),
             ),
+          ),
+          const SizedBox(width: 18),
+          ProfileAvatar(
+            radius: 20,
+            name: admin.displayName,
+            imageProvider: admin.profilePic.trim().isEmpty
+                ? null
+                : NetworkImage(admin.profilePic),
           ),
           const SizedBox(width: 10),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 180),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  admin.displayName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                Text(
-                  'Super Admin',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.textTheme.bodySmall?.color?.withValues(
-                      alpha: 0.72,
-                    ),
-                  ),
-                ),
-              ],
+          Text(
+            admin.displayName,
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w800,
             ),
           ),
+          const SizedBox(width: 12),
+          IconButton(
+            tooltip: 'Sign out',
+            onPressed: onSignOut,
+            icon: const Icon(Icons.logout_rounded),
+          ),
         ],
+      ),
+    );
+  }
+}
+
+class _OverviewSection extends StatelessWidget {
+  const _OverviewSection({
+    required this.users,
+    required this.applications,
+    required this.bookings,
+    required this.payments,
+  });
+
+  final List<AdminUserAccountModel> users;
+  final List<ProviderApplicationModel> applications;
+  final List<ProviderBookingModel> bookings;
+  final List<AdminPaymentModel> payments;
+
+  @override
+  Widget build(BuildContext context) {
+    final customers = users
+        .where((account) => account.user.role == AppUserRole.customer)
+        .length;
+    final providers = users
+        .where((account) => account.user.role == AppUserRole.service)
+        .length;
+    final pendingApplications = applications
+        .where((application) => application.status == 'pending')
+        .length;
+    final approvedProviders = users
+        .where((account) => account.user.isApprovedProvider)
+        .length;
+    final platformRevenue = payments
+        .where((payment) => payment.status == 'paid')
+        .fold<double>(
+          0,
+          (sum, payment) => sum + payment.platformCommissionAmount,
+        );
+    final pendingPayments = payments
+        .where((payment) => payment.status != 'paid')
+        .length;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _SectionTitle(
+          title: 'Overview',
+          subtitle: 'Platform health, verification, bookings, and payments.',
+        ),
+        const SizedBox(height: 20),
+        _MetricGrid(
+          metrics: [
+            _DashboardMetric(
+              'Total users',
+              users.length.toString(),
+              Icons.group_outlined,
+            ),
+            _DashboardMetric(
+              'Customers',
+              customers.toString(),
+              Icons.person_outline_rounded,
+            ),
+            _DashboardMetric(
+              'Service providers',
+              providers.toString(),
+              Icons.engineering_outlined,
+            ),
+            _DashboardMetric(
+              'Pending applications',
+              pendingApplications.toString(),
+              Icons.pending_actions_rounded,
+            ),
+            _DashboardMetric(
+              'Approved providers',
+              approvedProviders.toString(),
+              Icons.verified_rounded,
+            ),
+            _DashboardMetric(
+              'Total bookings',
+              bookings.length.toString(),
+              Icons.calendar_month_outlined,
+            ),
+            _DashboardMetric(
+              'Platform revenue',
+              _formatCurrency(platformRevenue),
+              Icons.payments_outlined,
+            ),
+            _DashboardMetric(
+              'Pending payments',
+              pendingPayments.toString(),
+              Icons.receipt_long_outlined,
+            ),
+          ],
+        ),
+        const SizedBox(height: 28),
+        _ApplicationsSection(applications: applications.take(5).toList()),
       ],
     );
   }
 }
 
-class _AdminHero extends StatelessWidget {
-  const _AdminHero({required this.admin});
+class _UsersSection extends StatelessWidget {
+  const _UsersSection({
+    required this.currentAdminId,
+    required this.users,
+    required this.onToggleUserSuspension,
+  });
 
-  final UserModel admin;
+  final String currentAdminId;
+  final List<AdminUserAccountModel> users;
+  final ValueChanged<AdminUserAccountModel> onToggleUserSuspension;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(AppSizes.cardPadding),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [theme.colorScheme.primary, const Color(0xFF2563EB)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(AppSizes.radiusLg),
+    return _TableCard(
+      title: 'Users',
+      child: DataTable(
+        columns: const [
+          DataColumn(label: Text('Name')),
+          DataColumn(label: Text('Email')),
+          DataColumn(label: Text('Role')),
+          DataColumn(label: Text('Status')),
+          DataColumn(label: Text('Provider Verification')),
+          DataColumn(label: Text('Actions')),
+        ],
+        rows: [
+          for (final account in users)
+            DataRow(
+              cells: [
+                DataCell(Text(account.user.displayName)),
+                DataCell(Text(account.user.email)),
+                DataCell(Text(account.user.role.label)),
+                DataCell(_StatusPill(label: account.status)),
+                DataCell(
+                  _StatusPill(
+                    label: _formatStatus(
+                      account.user.providerVerificationStatus,
+                    ),
+                  ),
+                ),
+                DataCell(
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      TextButton(
+                        onPressed: () => _showUserDetails(context, account),
+                        child: const Text('View details'),
+                      ),
+                      TextButton(
+                        onPressed: account.user.uid == currentAdminId
+                            ? null
+                            : () => onToggleUserSuspension(account),
+                        child: Text(
+                          account.isSuspended ? 'Activate' : 'Suspend',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+        ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Super Admin Dashboard',
-            style: theme.textTheme.headlineSmall?.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.w800,
+    );
+  }
+}
+
+class _ApplicationsSection extends StatelessWidget {
+  const _ApplicationsSection({
+    required this.applications,
+    this.onReviewApplication,
+  });
+
+  final List<ProviderApplicationModel> applications;
+  final void Function(ProviderApplicationModel application, String status)?
+  onReviewApplication;
+
+  @override
+  Widget build(BuildContext context) {
+    return _TableCard(
+      title: 'Provider Applications',
+      child: DataTable(
+        columns: const [
+          DataColumn(label: Text('Provider Name')),
+          DataColumn(label: Text('Age')),
+          DataColumn(label: Text('Phone')),
+          DataColumn(label: Text('Skill Category')),
+          DataColumn(label: Text('Experience')),
+          DataColumn(label: Text('Valid ID Type')),
+          DataColumn(label: Text('Status')),
+          DataColumn(label: Text('Submitted Date')),
+          DataColumn(label: Text('Actions')),
+        ],
+        rows: [
+          for (final application in applications)
+            DataRow(
+              cells: [
+                DataCell(Text(application.fullName)),
+                DataCell(Text(application.age.toString())),
+                DataCell(Text(application.phoneNumber)),
+                DataCell(Text(application.skillCategory)),
+                DataCell(Text('${application.experienceYears} yrs')),
+                DataCell(Text(application.validIdType)),
+                DataCell(_StatusPill(label: application.status)),
+                DataCell(Text(_formatDate(application.createdAt))),
+                DataCell(
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      TextButton(
+                        onPressed: () =>
+                            _showApplicationDetails(context, application),
+                        child: const Text('View details'),
+                      ),
+                      TextButton(
+                        onPressed:
+                            onReviewApplication == null ||
+                                application.isApproved
+                            ? null
+                            : () =>
+                                  onReviewApplication!(application, 'approved'),
+                        child: const Text('Approve'),
+                      ),
+                      TextButton(
+                        onPressed:
+                            onReviewApplication == null ||
+                                application.isRejected
+                            ? null
+                            : () =>
+                                  onReviewApplication!(application, 'rejected'),
+                        child: const Text('Reject'),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ServicesSection extends StatelessWidget {
+  const _ServicesSection({required this.services});
+
+  final List<ServiceListingModel> services;
+
+  @override
+  Widget build(BuildContext context) {
+    return _TableCard(
+      title: 'Services',
+      child: DataTable(
+        columns: const [
+          DataColumn(label: Text('Service title')),
+          DataColumn(label: Text('Provider name')),
+          DataColumn(label: Text('Category')),
+          DataColumn(label: Text('Price')),
+          DataColumn(label: Text('Service status')),
+          DataColumn(label: Text('Provider verification')),
+          DataColumn(label: Text('Actions')),
+        ],
+        rows: [
+          for (final service in services)
+            DataRow(
+              cells: [
+                DataCell(Text(service.title)),
+                DataCell(Text(service.providerName)),
+                DataCell(Text(service.category)),
+                DataCell(Text(_formatCurrency(service.price))),
+                DataCell(_StatusPill(label: service.status)),
+                DataCell(
+                  _StatusPill(
+                    label: service.providerVerificationStatus.trim().isEmpty
+                        ? 'unknown'
+                        : service.providerVerificationStatus,
+                  ),
+                ),
+                DataCell(
+                  TextButton(
+                    onPressed: () => _showServiceDetails(context, service),
+                    child: const Text('View details'),
+                  ),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BookingsSection extends StatelessWidget {
+  const _BookingsSection({required this.bookings});
+
+  final List<ProviderBookingModel> bookings;
+
+  @override
+  Widget build(BuildContext context) {
+    return _TableCard(
+      title: 'Bookings',
+      child: DataTable(
+        columns: const [
+          DataColumn(label: Text('Booking ID')),
+          DataColumn(label: Text('Customer')),
+          DataColumn(label: Text('Provider')),
+          DataColumn(label: Text('Service')),
+          DataColumn(label: Text('Schedule')),
+          DataColumn(label: Text('Booking status')),
+          DataColumn(label: Text('Payment status')),
+          DataColumn(label: Text('Total amount')),
+        ],
+        rows: [
+          for (final booking in bookings)
+            DataRow(
+              cells: [
+                DataCell(Text(_shortId(booking.bookingId))),
+                DataCell(Text(booking.customerName)),
+                DataCell(Text(booking.providerName)),
+                DataCell(Text(booking.serviceTitle)),
+                DataCell(Text(booking.selectedTimeSlot)),
+                DataCell(_StatusPill(label: booking.status)),
+                DataCell(_StatusPill(label: booking.paymentStatus)),
+                DataCell(Text(_formatCurrency(booking.totalAmount))),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RevenueSection extends StatelessWidget {
+  const _RevenueSection({required this.payments});
+
+  final List<AdminPaymentModel> payments;
+
+  @override
+  Widget build(BuildContext context) {
+    final paid = payments.where((payment) => payment.status == 'paid').toList();
+    final pending = payments
+        .where((payment) => payment.status != 'paid')
+        .length;
+    final totalCommission = paid.fold<double>(
+      0,
+      (sum, payment) => sum + payment.platformCommissionAmount,
+    );
+    final providerEarnings = paid.fold<double>(
+      0,
+      (sum, payment) => sum + payment.providerEarning,
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _SectionTitle(
+          title: 'Revenue',
+          subtitle: 'Mock payment lifecycle and platform commission.',
+        ),
+        const SizedBox(height: 20),
+        _MetricGrid(
+          metrics: [
+            _DashboardMetric(
+              'Platform commission',
+              _formatCurrency(totalCommission),
+              Icons.payments_outlined,
+            ),
+            _DashboardMetric(
+              'Provider earnings',
+              _formatCurrency(providerEarnings),
+              Icons.account_balance_wallet_outlined,
+            ),
+            _DashboardMetric(
+              'Paid bookings',
+              paid.length.toString(),
+              Icons.check_circle_outline_rounded,
+            ),
+            _DashboardMetric(
+              'Pending payments',
+              pending.toString(),
+              Icons.pending_actions_rounded,
+            ),
+          ],
+        ),
+        const SizedBox(height: 24),
+        _TableCard(
+          title: 'Recent payments',
+          child: DataTable(
+            columns: const [
+              DataColumn(label: Text('Payment ID')),
+              DataColumn(label: Text('Booking ID')),
+              DataColumn(label: Text('Amount')),
+              DataColumn(label: Text('Commission')),
+              DataColumn(label: Text('Provider earning')),
+              DataColumn(label: Text('Status')),
+            ],
+            rows: [
+              for (final payment in payments.take(20))
+                DataRow(
+                  cells: [
+                    DataCell(Text(_shortId(payment.paymentId))),
+                    DataCell(Text(_shortId(payment.bookingId))),
+                    DataCell(Text(_formatCurrency(payment.amount))),
+                    DataCell(
+                      Text(_formatCurrency(payment.platformCommissionAmount)),
+                    ),
+                    DataCell(Text(_formatCurrency(payment.providerEarning))),
+                    DataCell(_StatusPill(label: payment.status)),
+                  ],
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TermsSection extends StatelessWidget {
+  const _TermsSection({
+    required this.terms,
+    required this.termsController,
+    required this.isSavingTerms,
+    required this.onSaveTerms,
+  });
+
+  final AdminTermsModel? terms;
+  final TextEditingController termsController;
+  final bool isSavingTerms;
+  final VoidCallback onSaveTerms;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _SectionTitle(
+          title: 'Terms and Conditions',
+          subtitle: 'Wide editor for platform booking and usage policy.',
+        ),
+        const SizedBox(height: 20),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(
+                  spacing: 18,
+                  runSpacing: 8,
+                  children: [
+                    Text(
+                      'Version: ${terms?.version.isEmpty ?? true ? 'Not set' : terms!.version}',
+                    ),
+                    Text(
+                      'Updated: ${terms?.updatedAt == null ? 'Not set' : _formatDate(terms!.updatedAt!)}',
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                TextField(
+                  controller: termsController,
+                  minLines: 14,
+                  maxLines: 20,
+                  decoration: const InputDecoration(
+                    labelText: 'Terms and Conditions',
+                    alignLabelWithHint: true,
+                    prefixIcon: Icon(Icons.policy_outlined),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                SizedBox(
+                  width: 220,
+                  child: CustomButton(
+                    label: 'Save Terms',
+                    icon: Icons.save_rounded,
+                    isLoading: isSavingTerms,
+                    onPressed: onSaveTerms,
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            'Monitor HandyMarket users, provider validations, policy content, and platform revenue.',
-            style: theme.textTheme.bodyLarge?.copyWith(
-              color: Colors.white.withValues(alpha: 0.88),
-              height: 1.45,
+        ),
+      ],
+    );
+  }
+}
+
+class _NotificationsSection extends StatelessWidget {
+  const _NotificationsSection({required this.notifications});
+
+  final List<AppNotificationModel> notifications;
+
+  @override
+  Widget build(BuildContext context) {
+    return _TableCard(
+      title: 'Notifications',
+      child: DataTable(
+        columns: const [
+          DataColumn(label: Text('Title')),
+          DataColumn(label: Text('Type')),
+          DataColumn(label: Text('Body')),
+          DataColumn(label: Text('Related ID')),
+          DataColumn(label: Text('Created')),
+        ],
+        rows: [
+          for (final notification in notifications)
+            DataRow(
+              cells: [
+                DataCell(Text(notification.title)),
+                DataCell(Text(notification.type)),
+                DataCell(Text(notification.body)),
+                DataCell(Text(_shortId(notification.relatedId))),
+                DataCell(Text(_formatDate(notification.createdAt))),
+              ],
             ),
-          ),
         ],
       ),
     );
@@ -718,10 +1165,9 @@ class _AdminHero extends StatelessWidget {
 }
 
 class _MetricGrid extends StatelessWidget {
-  const _MetricGrid({required this.metrics, required this.isDesktop});
+  const _MetricGrid({required this.metrics});
 
   final List<_DashboardMetric> metrics;
-  final bool isDesktop;
 
   @override
   Widget build(BuildContext context) {
@@ -729,11 +1175,11 @@ class _MetricGrid extends StatelessWidget {
       itemCount: metrics.length,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: isDesktop ? 5 : 2,
-        crossAxisSpacing: 14,
-        mainAxisSpacing: 14,
-        mainAxisExtent: 126,
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 260,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+        mainAxisExtent: 130,
       ),
       itemBuilder: (context, index) {
         final metric = metrics[index];
@@ -751,7 +1197,7 @@ class _MetricGrid extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(
                     context,
-                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
                 ),
                 Text(
                   metric.label,
@@ -760,7 +1206,7 @@ class _MetricGrid extends StatelessWidget {
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: Theme.of(
                       context,
-                    ).textTheme.bodyMedium?.color?.withValues(alpha: 0.72),
+                    ).textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
                   ),
                 ),
               ],
@@ -772,307 +1218,17 @@ class _MetricGrid extends StatelessWidget {
   }
 }
 
-class _SkillValidationTable extends StatelessWidget {
-  const _SkillValidationTable({
-    required this.applications,
-    required this.onReviewApplication,
-  });
-
-  final List<ProviderApplicationModel> applications;
-  final void Function(ProviderApplicationModel application, String status)
-  onReviewApplication;
-
-  @override
-  Widget build(BuildContext context) {
-    return _SectionCard(
-      title: 'Skill validation requests',
-      child: applications.isEmpty
-          ? const _EmptyState(
-              icon: Icons.verified_user_outlined,
-              title: 'No provider applications',
-              description: 'Skill validation submissions will appear here.',
-            )
-          : SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: DataTable(
-                columns: const [
-                  DataColumn(label: Text('Provider')),
-                  DataColumn(label: Text('Skill')),
-                  DataColumn(label: Text('Experience')),
-                  DataColumn(label: Text('Status')),
-                  DataColumn(label: Text('Action')),
-                ],
-                rows: [
-                  for (final application in applications.take(8))
-                    DataRow(
-                      cells: [
-                        DataCell(Text(application.providerName)),
-                        DataCell(Text(application.skillCategory)),
-                        DataCell(Text('${application.experienceYears} yrs')),
-                        DataCell(_StatusPill(label: application.status)),
-                        DataCell(
-                          Wrap(
-                            spacing: 8,
-                            children: [
-                              TextButton(
-                                onPressed: application.status == 'approved'
-                                    ? null
-                                    : () => onReviewApplication(
-                                        application,
-                                        'approved',
-                                      ),
-                                child: const Text('Approve'),
-                              ),
-                              TextButton(
-                                onPressed: application.status == 'rejected'
-                                    ? null
-                                    : () => onReviewApplication(
-                                        application,
-                                        'rejected',
-                                      ),
-                                child: const Text('Reject'),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                ],
-              ),
-            ),
-    );
-  }
-}
-
-class _UserManagementTable extends StatelessWidget {
-  const _UserManagementTable({
-    required this.currentAdminId,
-    required this.users,
-    required this.onToggleUserSuspension,
-  });
-
-  final String currentAdminId;
-  final List<AdminUserAccountModel> users;
-  final ValueChanged<AdminUserAccountModel> onToggleUserSuspension;
-
-  @override
-  Widget build(BuildContext context) {
-    return _SectionCard(
-      title: 'User management',
-      child: users.isEmpty
-          ? const _EmptyState(
-              icon: Icons.group_outlined,
-              title: 'No users found',
-              description: 'Try clearing the search field.',
-            )
-          : SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: DataTable(
-                columns: const [
-                  DataColumn(label: Text('Name')),
-                  DataColumn(label: Text('Email')),
-                  DataColumn(label: Text('Role')),
-                  DataColumn(label: Text('Status')),
-                  DataColumn(label: Text('Action')),
-                ],
-                rows: [
-                  for (final account in users.take(10))
-                    DataRow(
-                      cells: [
-                        DataCell(Text(account.user.displayName)),
-                        DataCell(Text(account.user.email)),
-                        DataCell(Text(account.user.role.label)),
-                        DataCell(_StatusPill(label: account.status)),
-                        DataCell(
-                          TextButton(
-                            onPressed: account.user.uid == currentAdminId
-                                ? null
-                                : () => onToggleUserSuspension(account),
-                            child: Text(
-                              account.isSuspended ? 'Activate' : 'Suspend',
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                ],
-              ),
-            ),
-    );
-  }
-}
-
-class _RevenueOverview extends StatelessWidget {
-  const _RevenueOverview({required this.payments});
-
-  final List<AdminPaymentModel> payments;
-
-  @override
-  Widget build(BuildContext context) {
-    final paid = payments.where((payment) => payment.status == 'paid').toList();
-    final totalCommission = paid.fold<double>(
-      0,
-      (sum, payment) => sum + payment.platformCommissionAmount,
-    );
-    final maxAmount = paid.fold<double>(
-      1,
-      (max, payment) => payment.platformCommissionAmount > max
-          ? payment.platformCommissionAmount
-          : max,
-    );
-    final recent = paid.take(6).toList();
-
-    return _SectionCard(
-      title: 'Revenue overview',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            _formatCurrency(totalCommission),
-            style: Theme.of(
-              context,
-            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Platform commission from paid mock/test payments.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Theme.of(
-                context,
-              ).textTheme.bodyMedium?.color?.withValues(alpha: 0.72),
-            ),
-          ),
-          const SizedBox(height: 20),
-          SizedBox(
-            height: 160,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                if (recent.isEmpty)
-                  const Expanded(
-                    child: Center(child: Text('Revenue chart placeholder')),
-                  )
-                else
-                  for (final payment in recent) ...[
-                    Expanded(
-                      child: _RevenueBar(
-                        heightFactor:
-                            payment.platformCommissionAmount / maxAmount,
-                        label: _formatCurrency(
-                          payment.platformCommissionAmount,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                  ],
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _RevenueBar extends StatelessWidget {
-  const _RevenueBar({required this.heightFactor, required this.label});
-
-  final double heightFactor;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final clampedHeight = heightFactor.clamp(0.08, 1.0);
-
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.end,
-      children: [
-        Expanded(
-          child: Align(
-            alignment: Alignment.bottomCenter,
-            child: FractionallySizedBox(
-              heightFactor: clampedHeight,
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      theme.colorScheme.primary,
-                      const Color(0xFF2563EB),
-                    ],
-                    begin: Alignment.bottomCenter,
-                    end: Alignment.topCenter,
-                  ),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: theme.textTheme.bodySmall,
-        ),
-      ],
-    );
-  }
-}
-
-class _PolicyManagementCard extends StatelessWidget {
-  const _PolicyManagementCard({
-    required this.termsController,
-    required this.isSavingTerms,
-    required this.onSaveTerms,
-  });
-
-  final TextEditingController termsController;
-  final bool isSavingTerms;
-  final VoidCallback onSaveTerms;
-
-  @override
-  Widget build(BuildContext context) {
-    return _SectionCard(
-      title: 'Policy management',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          TextField(
-            controller: termsController,
-            minLines: 6,
-            maxLines: 8,
-            decoration: const InputDecoration(
-              labelText: 'Terms and Conditions',
-              alignLabelWithHint: true,
-              prefixIcon: Icon(Icons.policy_outlined),
-            ),
-          ),
-          const SizedBox(height: AppSizes.fieldGap),
-          CustomButton(
-            label: 'Save Terms',
-            icon: Icons.save_rounded,
-            isLoading: isSavingTerms,
-            onPressed: onSaveTerms,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SectionCard extends StatelessWidget {
-  const _SectionCard({required this.title, required this.child});
+class _TableCard extends StatelessWidget {
+  const _TableCard({required this.title, required this.child});
 
   final String title;
-  final Widget child;
+  final DataTable child;
 
   @override
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(AppSizes.cardPadding),
+        padding: const EdgeInsets.all(22),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1080,13 +1236,50 @@ class _SectionCard extends StatelessWidget {
               title,
               style: Theme.of(
                 context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 18),
-            child,
+            if (child.rows.isEmpty)
+              const _EmptyState()
+            else
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: child,
+              ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle({required this.title, required this.subtitle});
+
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: Theme.of(
+            context,
+          ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          subtitle,
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+            color: Theme.of(
+              context,
+            ).textTheme.bodyLarge?.color?.withValues(alpha: 0.72),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1098,13 +1291,17 @@ class _StatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final normalized = label.toLowerCase();
+    final normalized = label.trim().toLowerCase();
     final theme = Theme.of(context);
     final background = switch (normalized) {
-      'approved' || 'active' || 'paid' => theme.tokens.successSoft,
+      'approved' ||
+      'active' ||
+      'paid' ||
+      'completed' => theme.tokens.successSoft,
       'rejected' ||
       'suspended' ||
-      'failed' => theme.colorScheme.error.withValues(alpha: 0.12),
+      'failed' ||
+      'declined' => theme.colorScheme.error.withValues(alpha: 0.12),
       _ => theme.tokens.warningSoft,
     };
 
@@ -1125,47 +1322,69 @@ class _StatusPill extends StatelessWidget {
   }
 }
 
-class _EmptyState extends StatelessWidget {
-  const _EmptyState({
-    required this.icon,
-    required this.title,
-    required this.description,
+class _SidebarButton extends StatelessWidget {
+  const _SidebarButton({
+    required this.item,
+    required this.selected,
+    required this.onTap,
   });
 
-  final IconData icon;
-  final String title;
-  final String description;
+  final _SidebarItem item;
+  final bool selected;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final background = selected ? theme.tokens.primarySoft : Colors.transparent;
+    final foreground = selected
+        ? AppTheme.resolveOnColor(theme.tokens.primarySoft)
+        : theme.textTheme.bodyMedium?.color;
 
-    return Center(
-      child: Column(
-        children: [
-          Icon(
-            icon,
-            size: 38,
-            color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.48),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w800,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: background,
+        borderRadius: BorderRadius.circular(10),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(10),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            child: Row(
+              children: [
+                Icon(item.icon, color: foreground),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    item.label,
+                    style: TextStyle(
+                      color: foreground,
+                      fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 6),
-          Text(
-            description,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.72),
-              height: 1.4,
-            ),
-          ),
-        ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  const _EmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(32),
+      child: Center(
+        child: Text(
+          'No records found.',
+          style: Theme.of(context).textTheme.bodyLarge,
+        ),
       ),
     );
   }
@@ -1213,15 +1432,332 @@ class _AccessDenied extends StatelessWidget {
 }
 
 class _DashboardMetric {
-  const _DashboardMetric({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
+  const _DashboardMetric(this.label, this.value, this.icon);
 
-  final IconData icon;
   final String label;
   final String value;
+  final IconData icon;
+}
+
+class _SidebarItem {
+  const _SidebarItem(this.section, this.icon, this.label);
+
+  final _AdminSection section;
+  final IconData icon;
+  final String label;
+}
+
+const _sidebarItems = [
+  _SidebarItem(_AdminSection.overview, Icons.dashboard_outlined, 'Overview'),
+  _SidebarItem(_AdminSection.users, Icons.group_outlined, 'Users'),
+  _SidebarItem(
+    _AdminSection.applications,
+    Icons.verified_user_outlined,
+    'Provider Applications',
+  ),
+  _SidebarItem(
+    _AdminSection.services,
+    Icons.home_repair_service_outlined,
+    'Services',
+  ),
+  _SidebarItem(
+    _AdminSection.bookings,
+    Icons.calendar_month_outlined,
+    'Bookings',
+  ),
+  _SidebarItem(_AdminSection.revenue, Icons.payments_outlined, 'Revenue'),
+  _SidebarItem(
+    _AdminSection.terms,
+    Icons.policy_outlined,
+    'Terms and Conditions',
+  ),
+  _SidebarItem(
+    _AdminSection.notifications,
+    Icons.notifications_outlined,
+    'Notifications',
+  ),
+];
+
+void _showUserDetails(BuildContext context, AdminUserAccountModel account) {
+  final user = account.user;
+  showDialog<void>(
+    context: context,
+    builder: (context) {
+      return AlertDialog(
+        title: const Text('User details'),
+        content: SizedBox(
+          width: 520,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ProfileAvatar(
+                radius: 42,
+                name: user.displayName,
+                imageProvider: user.profilePic.trim().isEmpty
+                    ? null
+                    : NetworkImage(user.profilePic),
+              ),
+              const SizedBox(height: 18),
+              _DetailRow('Full name', user.legalName),
+              _DetailRow('Email', user.email),
+              _DetailRow('Role', user.role.label),
+              _DetailRow('Phone', user.phone),
+              _DetailRow('Address', user.locationLabel),
+              _DetailRow('Account status', account.status),
+              _DetailRow(
+                'Provider verification',
+                _formatStatus(user.providerVerificationStatus),
+              ),
+              _DetailRow(
+                'Created',
+                user.createdAt == null
+                    ? 'Not available'
+                    : _formatDate(user.createdAt!),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      );
+    },
+  );
+}
+
+void _showApplicationDetails(
+  BuildContext context,
+  ProviderApplicationModel application,
+) {
+  showDialog<void>(
+    context: context,
+    builder: (context) {
+      return AlertDialog(
+        title: const Text('Provider application'),
+        content: SizedBox(
+          width: 760,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _DetailRow('Full name', application.fullName),
+                _DetailRow('Age', application.age.toString()),
+                _DetailRow('Phone number', application.phoneNumber),
+                _DetailRow('Email', application.email),
+                _DetailRow('Address', application.address),
+                _DetailRow('City', application.city),
+                _DetailRow('Province', application.province),
+                _DetailRow('Skill category', application.skillCategory),
+                _DetailRow(
+                  'Experience',
+                  '${application.experienceYears} years',
+                ),
+                _DetailRow(
+                  'Service description',
+                  application.serviceDescription,
+                ),
+                _DetailRow(
+                  'Coverage area',
+                  application.serviceLocationCoverage,
+                ),
+                _DetailRow('Valid ID type', application.validIdType),
+                _DetailRow('Status', application.status),
+                _DetailRow('Admin remarks', application.adminRemarks),
+                _DetailRow('Submitted', _formatDate(application.createdAt)),
+                _DetailRow(
+                  'Reviewed',
+                  application.reviewedAt == null
+                      ? 'Not reviewed'
+                      : _formatDate(application.reviewedAt!),
+                ),
+                const SizedBox(height: 14),
+                const Text(
+                  'Valid ID images',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    _IdImage(label: 'Front', url: application.validIdFrontUrl),
+                    _IdImage(label: 'Back', url: application.validIdBackUrl),
+                    _IdImage(label: 'Selfie', url: application.selfieWithIdUrl),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      );
+    },
+  );
+}
+
+void _showServiceDetails(BuildContext context, ServiceListingModel service) {
+  showDialog<void>(
+    context: context,
+    builder: (context) {
+      return AlertDialog(
+        title: const Text('Service listing'),
+        content: SizedBox(
+          width: 520,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _DetailRow('Service title', service.title),
+              _DetailRow('Provider', service.providerName),
+              _DetailRow('Provider phone', service.providerPhone),
+              _DetailRow('Category', service.category),
+              _DetailRow('Description', service.description),
+              _DetailRow('Location', service.location),
+              _DetailRow('Price', _formatCurrency(service.price)),
+              _DetailRow('Rating', service.rating.toStringAsFixed(1)),
+              _DetailRow('Status', service.status),
+              _DetailRow(
+                'Provider verification',
+                service.providerVerificationStatus.trim().isEmpty
+                    ? 'Unknown'
+                    : _formatStatus(service.providerVerificationStatus),
+              ),
+              _DetailRow('Created', _formatDate(service.createdAt)),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      );
+    },
+  );
+}
+
+class _DetailRow extends StatelessWidget {
+  const _DetailRow(this.label, this.value);
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 190,
+            child: Text(
+              label,
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ),
+          Expanded(child: Text(value.trim().isEmpty ? 'Not provided' : value)),
+        ],
+      ),
+    );
+  }
+}
+
+class _IdImage extends StatelessWidget {
+  const _IdImage({required this.label, required this.url});
+
+  final String label;
+  final String url;
+
+  @override
+  Widget build(BuildContext context) {
+    if (url.trim().isEmpty) {
+      return SizedBox(
+        width: 180,
+        height: 130,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            border: Border.all(color: Theme.of(context).colorScheme.outline),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Center(child: Text('$label not uploaded')),
+        ),
+      );
+    }
+
+    return SizedBox(
+      width: 180,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: const TextStyle(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Image.network(
+              url,
+              height: 130,
+              width: 180,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                return Container(
+                  height: 130,
+                  width: 180,
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  child: const Center(child: Text('Image unavailable')),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 String _formatCurrency(double value) => 'PHP ${value.toStringAsFixed(2)}';
+
+String _formatStatus(String status) {
+  return switch (status.trim().toLowerCase()) {
+    'pending' => 'Pending',
+    'approved' => 'Approved',
+    'rejected' => 'Rejected',
+    'no_application' => 'No application',
+    _ => status.trim().isEmpty ? 'Unknown' : status,
+  };
+}
+
+String _shortId(String value) {
+  if (value.length <= 8) {
+    return value;
+  }
+
+  return value.substring(0, 8);
+}
+
+String _formatDate(DateTime value) {
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+  return '${months[value.month - 1]} ${value.day}, ${value.year}';
+}

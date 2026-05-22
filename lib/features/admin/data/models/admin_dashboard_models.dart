@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../auth/data/models/user_model.dart';
 
@@ -30,94 +31,6 @@ class AdminUserAccountModel extends Equatable {
 
   @override
   List<Object?> get props => [user, status, isSuspended];
-}
-
-class ProviderApplicationModel extends Equatable {
-  const ProviderApplicationModel({
-    required this.applicationId,
-    required this.providerId,
-    required this.providerName,
-    required this.skillCategory,
-    required this.experienceYears,
-    required this.proofUrl,
-    required this.status,
-    required this.adminRemarks,
-    required this.createdAt,
-    this.reviewedAt,
-  });
-
-  final String applicationId;
-  final String providerId;
-  final String providerName;
-  final String skillCategory;
-  final int experienceYears;
-  final String proofUrl;
-  final String status;
-  final String adminRemarks;
-  final DateTime createdAt;
-  final DateTime? reviewedAt;
-
-  factory ProviderApplicationModel.fromMap(
-    Map<String, dynamic> map,
-    String documentId,
-  ) {
-    return ProviderApplicationModel(
-      applicationId: map['applicationId'] as String? ?? documentId,
-      providerId: map['providerId'] as String? ?? '',
-      providerName: map['providerName'] as String? ?? 'Service Provider',
-      skillCategory: map['skillCategory'] as String? ?? 'General',
-      experienceYears: _readInt(map['experienceYears']),
-      proofUrl: map['proofUrl'] as String? ?? '',
-      status: map['status'] as String? ?? 'pending',
-      adminRemarks: map['adminRemarks'] as String? ?? '',
-      createdAt:
-          _readDateTime(map['createdAt']) ??
-          DateTime.fromMillisecondsSinceEpoch(0),
-      reviewedAt: _readDateTime(map['reviewedAt']),
-    );
-  }
-
-  static int _readInt(dynamic value) {
-    if (value is num) {
-      return value.toInt();
-    }
-
-    return int.tryParse(value?.toString() ?? '') ?? 0;
-  }
-
-  static DateTime? _readDateTime(dynamic value) {
-    if (value == null) {
-      return null;
-    }
-
-    if (value is DateTime) {
-      return value;
-    }
-
-    final toDate = (value as dynamic).toDate;
-    if (toDate is Function) {
-      final result = toDate();
-      if (result is DateTime) {
-        return result;
-      }
-    }
-
-    return null;
-  }
-
-  @override
-  List<Object?> get props => [
-    applicationId,
-    providerId,
-    providerName,
-    skillCategory,
-    experienceYears,
-    proofUrl,
-    status,
-    adminRemarks,
-    createdAt,
-    reviewedAt,
-  ];
 }
 
 class AdminPaymentModel extends Equatable {
@@ -157,7 +70,7 @@ class AdminPaymentModel extends Equatable {
       providerEarning: _readDouble(map['providerEarning']),
       status: map['status'] as String? ?? 'pending',
       createdAt:
-          ProviderApplicationModel._readDateTime(map['createdAt']) ??
+          _readDateTime(map['createdAt']) ??
           DateTime.fromMillisecondsSinceEpoch(0),
     );
   }
@@ -168,6 +81,22 @@ class AdminPaymentModel extends Equatable {
     }
 
     return double.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  static DateTime? _readDateTime(dynamic value) {
+    if (value == null) {
+      return null;
+    }
+
+    if (value is DateTime) {
+      return value;
+    }
+
+    if (value is Timestamp) {
+      return value.toDate();
+    }
+
+    return DateTime.tryParse(value.toString());
   }
 
   @override
@@ -182,4 +111,46 @@ class AdminPaymentModel extends Equatable {
     status,
     createdAt,
   ];
+}
+
+class AdminTermsModel extends Equatable {
+  const AdminTermsModel({
+    required this.termsId,
+    required this.body,
+    required this.version,
+    this.updatedAt,
+  });
+
+  final String termsId;
+  final String body;
+  final String version;
+  final DateTime? updatedAt;
+
+  factory AdminTermsModel.fromMap(Map<String, dynamic> map, String documentId) {
+    return AdminTermsModel(
+      termsId: map['termsId'] as String? ?? documentId,
+      body: map['body'] as String? ?? '',
+      version: map['version'] as String? ?? '',
+      updatedAt: _readDateTime(map['updatedAt']),
+    );
+  }
+
+  static DateTime? _readDateTime(dynamic value) {
+    if (value == null) {
+      return null;
+    }
+
+    if (value is DateTime) {
+      return value;
+    }
+
+    if (value is Timestamp) {
+      return value.toDate();
+    }
+
+    return DateTime.tryParse(value.toString());
+  }
+
+  @override
+  List<Object?> get props => [termsId, body, version, updatedAt];
 }

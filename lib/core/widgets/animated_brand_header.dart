@@ -67,33 +67,47 @@ class _AnimatedBrandHeaderState extends State<AnimatedBrandHeader>
     return SizedBox(
       height: widget.logoSize,
       child: Center(
-        child: AnimatedBuilder(
-          animation: _controller,
-          builder: (context, child) {
-            return Row(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                BrandLogo(size: widget.logoSize),
-                if (widget.showTitle) ...[
-                  SizedBox(width: 10 * _titleReveal.value),
-                  ClipRect(
-                    child: Align(
-                      widthFactor: _titleReveal.value,
-                      child: FadeTransition(
-                        opacity: _titleOpacity,
-                        child: Text(
-                          widget.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
-                          style: titleStyle,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final logoSize = constraints.maxWidth < widget.logoSize
+                ? constraints.maxWidth
+                : widget.logoSize;
+
+            return AnimatedBuilder(
+              animation: _controller,
+              builder: (context, child) {
+                return Row(
+                  mainAxisSize: MainAxisSize.max,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    BrandLogo(size: logoSize),
+                    if (widget.showTitle && constraints.maxWidth > logoSize)
+                      Flexible(
+                        child: Padding(
+                          padding: EdgeInsets.only(
+                            left: 10 * _titleReveal.value,
+                          ),
+                          child: ClipRect(
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              widthFactor: _titleReveal.value,
+                              child: FadeTransition(
+                                opacity: _titleOpacity,
+                                child: Text(
+                                  widget.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.left,
+                                  style: titleStyle,
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                  ),
-                ],
-              ],
+                  ],
+                );
+              },
             );
           },
         ),

@@ -14,6 +14,8 @@ import '../features/customer/ui/pages/post_job_page.dart';
 import '../features/customer/ui/pages/service_detail_page.dart';
 import '../features/customer/ui/pages/settings_page.dart';
 import '../features/provider/ui/pages/provider_dashboard_page.dart';
+import '../features/provider/ui/pages/edit_provider_profile_page.dart';
+import '../features/provider/ui/pages/provider_profile_page.dart';
 
 class AppRouter {
   static const String registerRoute = '/register';
@@ -26,6 +28,8 @@ class AppRouter {
   static const String settingsRoute = '/customer/settings';
   static const String chatRoute = '/chat';
   static const String providerDashboardRoute = '/provider/dashboard';
+  static const String providerProfileRoute = '/provider/profile';
+  static const String editProviderProfileRoute = '/provider/profile/edit';
   static const String adminDashboardRoute = '/admin/dashboard';
 
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
@@ -92,6 +96,16 @@ class AppRouter {
       case providerDashboardRoute:
         return _AppPageRoute(
           builder: (_) => const ProviderDashboardPage(),
+          settings: settings,
+        );
+      case providerProfileRoute:
+        return _AppPageRoute(
+          builder: (_) => const ProviderProfilePage(),
+          settings: settings,
+        );
+      case editProviderProfileRoute:
+        return _AppPageRoute(
+          builder: (_) => const EditProviderProfilePage(),
           settings: settings,
         );
       case adminDashboardRoute:

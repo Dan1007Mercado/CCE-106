@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 enum AppUserRole {
@@ -139,11 +140,14 @@ class UserModel extends Equatable {
     this.longitude,
     this.address = '',
     this.profilePic = '',
+    this.providerVerificationStatus = 'no_application',
+    this.verifiedProvider = false,
     this.photosPermission = UserPermissionStatus.unknown,
     this.notificationsPermission = UserPermissionStatus.unknown,
     this.locationPermission = UserPermissionStatus.unknown,
     this.themeMode = AppThemePreference.system,
     this.profileUpdatedAt,
+    this.createdAt,
   });
 
   final String uid;
@@ -158,11 +162,14 @@ class UserModel extends Equatable {
   final double? longitude;
   final String address;
   final String profilePic;
+  final String providerVerificationStatus;
+  final bool verifiedProvider;
   final UserPermissionStatus photosPermission;
   final UserPermissionStatus notificationsPermission;
   final UserPermissionStatus locationPermission;
   final AppThemePreference themeMode;
   final DateTime? profileUpdatedAt;
+  final DateTime? createdAt;
 
   String get displayName {
     final parts = [
@@ -201,6 +208,11 @@ class UserModel extends Equatable {
 
   bool get isReadyForBooking => hasContactNumber && hasBookingLocation;
 
+  bool get isApprovedProvider =>
+      role == AppUserRole.service &&
+      verifiedProvider &&
+      providerVerificationStatus.trim().toLowerCase() == 'approved';
+
   factory UserModel.fromMap(Map<String, dynamic> map, String documentId) {
     final legacyName = _LegacyNameParts.fromValue(
       map['name'] as String? ?? map['displayName'] as String?,
@@ -219,6 +231,10 @@ class UserModel extends Equatable {
       longitude: _readDouble(map['longitude']),
       address: map['address'] as String? ?? map['location'] as String? ?? '',
       profilePic: map['profilePic'] as String? ?? '',
+      providerVerificationStatus:
+          map['providerVerificationStatus'] as String? ??
+          (map['verifiedProvider'] == true ? 'approved' : 'no_application'),
+      verifiedProvider: map['verifiedProvider'] as bool? ?? false,
       photosPermission: UserPermissionStatus.fromValue(
         map['photosPermission'] as String?,
       ),
@@ -232,6 +248,7 @@ class UserModel extends Equatable {
       profileUpdatedAt: _readDateTime(
         map['profileUpdatedAt'] ?? map['updatedAt'],
       ),
+      createdAt: _readDateTime(map['createdAt']),
     );
   }
 
@@ -249,6 +266,8 @@ class UserModel extends Equatable {
       'longitude': longitude,
       'address': address,
       'profilePic': profilePic,
+      'providerVerificationStatus': providerVerificationStatus,
+      'verifiedProvider': verifiedProvider,
       'photosPermission': photosPermission.value,
       'notificationsPermission': notificationsPermission.value,
       'locationPermission': locationPermission.value,
@@ -270,12 +289,15 @@ class UserModel extends Equatable {
     bool clearCoordinates = false,
     String? address,
     String? profilePic,
+    String? providerVerificationStatus,
+    bool? verifiedProvider,
     UserPermissionStatus? photosPermission,
     UserPermissionStatus? notificationsPermission,
     UserPermissionStatus? locationPermission,
     AppThemePreference? themeMode,
     DateTime? profileUpdatedAt,
     bool clearProfileUpdatedAt = false,
+    DateTime? createdAt,
   }) {
     return UserModel(
       uid: uid ?? this.uid,
@@ -290,6 +312,9 @@ class UserModel extends Equatable {
       longitude: clearCoordinates ? null : longitude ?? this.longitude,
       address: address ?? this.address,
       profilePic: profilePic ?? this.profilePic,
+      providerVerificationStatus:
+          providerVerificationStatus ?? this.providerVerificationStatus,
+      verifiedProvider: verifiedProvider ?? this.verifiedProvider,
       photosPermission: photosPermission ?? this.photosPermission,
       notificationsPermission:
           notificationsPermission ?? this.notificationsPermission,
@@ -298,6 +323,7 @@ class UserModel extends Equatable {
       profileUpdatedAt: clearProfileUpdatedAt
           ? null
           : profileUpdatedAt ?? this.profileUpdatedAt,
+      createdAt: createdAt ?? this.createdAt,
     );
   }
 
@@ -314,15 +340,11 @@ class UserModel extends Equatable {
       return DateTime.fromMillisecondsSinceEpoch(value);
     }
 
-    final toDate = (value as dynamic).toDate;
-    if (toDate is Function) {
-      final result = toDate();
-      if (result is DateTime) {
-        return result;
-      }
+    if (value is Timestamp) {
+      return value.toDate();
     }
 
-    return null;
+    return DateTime.tryParse(value.toString());
   }
 
   static double? _readDouble(dynamic value) {
@@ -347,11 +369,14 @@ class UserModel extends Equatable {
     longitude,
     address,
     profilePic,
+    providerVerificationStatus,
+    verifiedProvider,
     photosPermission,
     notificationsPermission,
     locationPermission,
     themeMode,
     profileUpdatedAt,
+    createdAt,
   ];
 }
 
