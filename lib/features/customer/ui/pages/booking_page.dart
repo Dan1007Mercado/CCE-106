@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/constants/app_sizes.dart';
 import '../../../../core/utils/helpers.dart';
@@ -10,6 +11,7 @@ import '../../../auth/bloc/auth_bloc.dart';
 import '../../../auth/data/models/user_model.dart';
 import '../../data/models/service_listing_model.dart';
 import '../../data/services/booking_service.dart';
+import '../../data/services/stripe_checkout_service.dart';
 
 class BookingPageArgs {
   const BookingPageArgs({required this.service, this.jobId, this.difficulty});
@@ -48,8 +50,7 @@ class _BookingPageState extends State<BookingPage> {
   static const int _serviceEndMinute = 18 * 60;
 
   static const List<String> _paymentMethods = [
-    'Mock Wallet',
-    'Test Card',
+    'Stripe Test Card',
     'Cash on service',
   ];
 
@@ -57,6 +58,7 @@ class _BookingPageState extends State<BookingPage> {
   final _addressController = TextEditingController();
   final _notesController = TextEditingController();
   final BookingService _bookingService = BookingService();
+  final StripeCheckoutService _stripeCheckoutService = StripeCheckoutService();
 
   DateTime _selectedDate = DateUtils.dateOnly(
     DateTime.now().add(const Duration(days: 1)),
@@ -440,11 +442,40 @@ class _BookingPageState extends State<BookingPage> {
         return;
       }
 
+      if (_selectedPaymentMethod == 'Cash on service') {
+        Helpers.showSnackBar(
+          context,
+          'Booking ${result.bookingId.substring(0, 6)} confirmed.',
+        );
+        Navigator.of(context).popUntil((route) => route.isFirst);
+        return;
+      }
+
+      final checkoutUrl = await _stripeCheckoutService.createCheckoutSession(
+        bookingId: result.bookingId,
+        paymentId: result.paymentId,
+        serviceTitle: service.title,
+        customerEmail: user.email,
+        amount: result.totalAmount,
+      );
+
+      final opened = await launchUrl(
+        Uri.parse(checkoutUrl),
+        mode: LaunchMode.externalApplication,
+      );
+
+      if (!opened) {
+        throw Exception('Could not open Stripe Checkout.');
+      }
+
+      if (!mounted) {
+        return;
+      }
+
       Helpers.showSnackBar(
         context,
-        'Booking ${result.bookingId.substring(0, 6)} confirmed.',
+        'Stripe Checkout opened for booking ${result.bookingId.substring(0, 6)}.',
       );
-      Navigator.of(context).popUntil((route) => route.isFirst);
     } catch (error) {
       if (!mounted) {
         return;
