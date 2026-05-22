@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/constants/app_sizes.dart';
+import '../../../../core/constants/app_strings.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/helpers.dart';
+import '../../../../core/widgets/brand_logo.dart';
 import '../../../../core/widgets/custom_button.dart';
 import '../../../../core/widgets/custom_textfield.dart';
 import '../../../../core/widgets/loading_indicator.dart';
@@ -33,7 +37,8 @@ class ProviderDashboardPage extends StatefulWidget {
   State<ProviderDashboardPage> createState() => _ProviderDashboardPageState();
 }
 
-class _ProviderDashboardPageState extends State<ProviderDashboardPage> {
+class _ProviderDashboardPageState extends State<ProviderDashboardPage>
+    with SingleTickerProviderStateMixin {
   static const List<String> _serviceCategories = [
     'Plumbing',
     'Electrician',
@@ -47,6 +52,31 @@ class _ProviderDashboardPageState extends State<ProviderDashboardPage> {
   final ChatService _chatService = ChatService();
   final ProviderApplicationService _applicationService =
       ProviderApplicationService();
+  late final TabController _tabController;
+  Timer? _statusPanelTimer;
+  bool _showStatusPanels = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 6, vsync: this);
+    _statusPanelTimer = Timer(const Duration(seconds: 5), () {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _showStatusPanels = false;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _statusPanelTimer?.cancel();
+    _tabController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -64,36 +94,116 @@ class _ProviderDashboardPageState extends State<ProviderDashboardPage> {
       return _AccessDenied(user: user);
     }
 
+    final theme = Theme.of(context);
+    final tokens = theme.tokens;
+
     return Scaffold(
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text('HandyMarket Provider'),
-        actions: [
-          IconButton(
-            tooltip: 'Profile',
-            onPressed: () {
-              Navigator.of(context).pushNamed(AppRouter.providerProfileRoute);
-            },
-            icon: ProfileAvatar(
-              radius: 14,
-              name: user.displayName,
+        titleSpacing: AppSizes.pagePadding,
+        toolbarHeight: 72,
+        title: const Row(
+          children: [
+            BrandLogo(size: 36, borderRadius: 10),
+            SizedBox(width: 12),
+            Flexible(
+              child: Text(
+                AppStrings.appName,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
             ),
+          ],
+        ),
+        actions: [
+          _ProviderActionIcon(
+            icon: Icons.notifications_none_rounded,
+            tooltip: 'Notifications',
+            onTap: () => _showComingSoon('Notifications'),
           ),
-          IconButton(
+          _ProviderActionIcon(
+            icon: Icons.settings_outlined,
             tooltip: 'Settings',
-            onPressed: () {
+            onTap: () {
               Navigator.of(context).pushNamed(AppRouter.providerSettingsRoute);
             },
-            icon: const Icon(Icons.settings_outlined),
           ),
-          IconButton(
-            tooltip: 'Sign out',
-            onPressed: () {
-              context.read<AuthBloc>().add(const AuthSignOutRequested());
-            },
-            icon: const Icon(Icons.logout_rounded),
+          Padding(
+            padding: const EdgeInsets.only(right: AppSizes.pagePadding),
+            child: InkWell(
+              onTap: () {
+                Navigator.of(context).pushNamed(AppRouter.providerProfileRoute);
+              },
+              borderRadius: BorderRadius.circular(24),
+              child: Container(
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: tokens.subtleSurface,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: theme.colorScheme.outlineVariant.withValues(
+                      alpha: 0.55,
+                    ),
+                  ),
+                ),
+                child: ProfileAvatar(radius: 18, name: user.displayName),
+              ),
+            ),
           ),
-          const SizedBox(width: 8),
         ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(68),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSizes.pagePadding,
+              0,
+              AppSizes.pagePadding,
+              12,
+            ),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: tokens.primarySoft,
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(
+                  color: theme.colorScheme.primary.withValues(alpha: 0.10),
+                ),
+              ),
+              child: TabBar(
+                controller: _tabController,
+                isScrollable: true,
+                dividerColor: Colors.transparent,
+                indicatorSize: TabBarIndicatorSize.tab,
+                indicator: BoxDecoration(
+                  color: theme.colorScheme.primary,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                labelColor: theme.colorScheme.onPrimary,
+                unselectedLabelColor: AppTheme.resolveOnColor(
+                  tokens.primarySoft,
+                ).withValues(alpha: 0.72),
+                labelStyle: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 13,
+                ),
+                unselectedLabelStyle: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
+                splashBorderRadius: BorderRadius.circular(999),
+                tabs: const [
+                  Tab(height: 42, text: 'Overview'),
+                  Tab(height: 42, text: 'Services'),
+                  Tab(height: 42, text: 'Bookings'),
+                  Tab(height: 42, text: 'Schedule'),
+                  Tab(height: 42, text: 'Revenue'),
+                  Tab(height: 42, text: 'Jobs'),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
       body: StreamBuilder<List<ServiceListingModel>>(
         stream: _providerService.streamProviderServices(user.uid),
@@ -145,6 +255,8 @@ class _ProviderDashboardPageState extends State<ProviderDashboardPage> {
                                   jobSnapshot.data ?? const <JobPostModel>[];
 
                               return _ProviderDashboardContent(
+                                tabController: _tabController,
+                                showStatusPanels: _showStatusPanels,
                                 user: user,
                                 application: application,
                                 services: services,
@@ -186,6 +298,10 @@ class _ProviderDashboardPageState extends State<ProviderDashboardPage> {
         },
       ),
     );
+  }
+
+  void _showComingSoon(String label) {
+    Helpers.showSnackBar(context, '$label coming soon');
   }
 
   Future<void> _changeBookingStatus(
@@ -931,6 +1047,8 @@ class _ProviderDashboardPageState extends State<ProviderDashboardPage> {
 
 class _ProviderDashboardContent extends StatelessWidget {
   const _ProviderDashboardContent({
+    required this.tabController,
+    required this.showStatusPanels,
     required this.user,
     required this.application,
     required this.services,
@@ -950,6 +1068,8 @@ class _ProviderDashboardContent extends StatelessWidget {
     required this.onOpenChat,
   });
 
+  final TabController tabController;
+  final bool showStatusPanels;
   final UserModel user;
   final ProviderApplicationModel? application;
   final List<ServiceListingModel> services;
@@ -973,6 +1093,13 @@ class _ProviderDashboardContent extends StatelessWidget {
     final pending = bookings.where((booking) => booking.isPending).toList();
     final upcoming = bookings.where((booking) => booking.isAccepted).toList();
     final completed = bookings.where((booking) => booking.isCompleted).toList();
+    final declinedOrCancelled = bookings
+        .where(
+          (booking) =>
+              booking.status == 'declined' ||
+              booking.status == 'cancelled_by_customer',
+        )
+        .toList();
     final isApproved =
         user.isApprovedProvider || application?.isApproved == true;
     final paidPayments = payments.where((payment) => payment.status == 'paid');
@@ -981,130 +1108,1427 @@ class _ProviderDashboardContent extends StatelessWidget {
       (sum, payment) => sum + payment.providerEarning,
     );
 
+    return Stack(
+      children: [
+        TabBarView(
+          controller: tabController,
+          children: [
+            _ProviderTabPage(
+              children: [
+                AnimatedSwitcher(
+                  duration: AppTheme.motionDuration,
+                  reverseDuration: AppTheme.motionReverseDuration,
+                  switchInCurve: AppTheme.motionCurve,
+                  switchOutCurve: AppTheme.motionCurve,
+                  transitionBuilder: (child, animation) {
+                    return SizeTransition(
+                      sizeFactor: animation,
+                      axisAlignment: -1,
+                      child: FadeTransition(opacity: animation, child: child),
+                    );
+                  },
+                  child: showStatusPanels
+                      ? Column(
+                          key: const ValueKey('provider-status-panels'),
+                          children: [
+                            _ProviderWelcomePanel(
+                              user: user,
+                              application: application,
+                              serviceCount: services.length,
+                              pendingBookingCount: pending.length,
+                            ),
+                            const SizedBox(height: AppSizes.sectionGap),
+                            ProviderVerificationBanner(
+                              user: user,
+                              application: application,
+                              onApply: onOpenApplication,
+                            ),
+                            const SizedBox(height: AppSizes.sectionGap),
+                          ],
+                        )
+                      : const SizedBox.shrink(
+                          key: ValueKey('provider-status-panels-hidden'),
+                        ),
+                ),
+                _ProviderMetricGrid(
+                  metrics: [
+                    _DashboardMetric(
+                      icon: Icons.home_repair_service_outlined,
+                      label: 'Services listed',
+                      value: services.length.toString(),
+                    ),
+                    _DashboardMetric(
+                      icon: Icons.pending_actions_rounded,
+                      label: 'Pending bookings',
+                      value: pending.length.toString(),
+                    ),
+                    _DashboardMetric(
+                      icon: Icons.check_circle_outline_rounded,
+                      label: 'Completed',
+                      value: completed.length.toString(),
+                    ),
+                    _DashboardMetric(
+                      icon: Icons.account_balance_wallet_outlined,
+                      label: 'Earnings',
+                      value: _formatCurrency(earnings),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSizes.sectionGap),
+                _ProviderQuickActions(
+                  isApproved: isApproved,
+                  onAddService: onAddService,
+                  onAddSlot: onAddSlot,
+                  onOpenApplication: onOpenApplication,
+                ),
+                const SizedBox(height: AppSizes.sectionGap),
+                _ProviderSectionHeader(
+                  title: 'Recent booking requests',
+                  description: 'Review new customer bookings as they arrive.',
+                  trailing: _ProviderStatusPill(label: pending.length.toString()),
+                ),
+                const SizedBox(height: 12),
+                if (pending.isEmpty)
+                  const _ProviderEmptyCard(
+                    icon: Icons.inbox_outlined,
+                    title: 'No pending booking requests',
+                    description: 'New customer bookings will appear here.',
+                  )
+                else
+                  for (final booking in pending.take(3)) ...[
+                    _ProviderBookingCard(
+                      booking: booking,
+                      canAccept: isApproved,
+                      onAccept: () => onAcceptBooking(booking),
+                      onDecline: () => onDeclineBooking(booking),
+                      onMarkDone: () => onMarkBookingDone(booking),
+                      onOpenChat: () => onOpenChat(booking),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+              ],
+            ),
+            _ProviderTabPage(
+              children: [
+                _ProviderSectionHeader(
+                  title: 'My services',
+                  description: 'Manage the services customers can book.',
+                  trailing: TextButton.icon(
+                    onPressed: isApproved
+                        ? onAddService
+                        : () => _showApprovalRequired(context),
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text('Add'),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                if (services.isEmpty)
+                  const _ProviderEmptyCard(
+                    icon: Icons.home_repair_service_outlined,
+                    title: 'No service listings yet',
+                    description:
+                        'Publish your first service after verification approval.',
+                  )
+                else
+                  for (final service in services) ...[
+                    _ProviderServiceCard(
+                      service: service,
+                      canEditService: isApproved,
+                      onEdit: () => onEditService(service),
+                      onDelete: () => onDeleteService(service),
+                      onToggleStatus: () => onToggleServiceStatus(service),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+              ],
+            ),
+            _ProviderBookingsTab(
+              bookings: bookings,
+              pending: pending,
+              accepted: upcoming,
+              completed: completed,
+              closed: declinedOrCancelled,
+              canAccept: isApproved,
+              onAcceptBooking: onAcceptBooking,
+              onDeclineBooking: onDeclineBooking,
+              onMarkBookingDone: onMarkBookingDone,
+              onOpenChat: onOpenChat,
+            ),
+            _ProviderTabPage(
+              children: [
+                _ProviderSectionHeader(
+                  title: 'Availability',
+                  description: 'Keep your open schedule clear for customers.',
+                  trailing: TextButton.icon(
+                    onPressed: onAddSlot,
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text('Add slot'),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                if (slots.isEmpty)
+                  const _ProviderEmptyCard(
+                    icon: Icons.event_busy_outlined,
+                    title: 'No availability saved',
+                    description:
+                        'Add slots so customers can find your open schedule.',
+                  )
+                else
+                  for (final slot in slots) ...[
+                    _ProviderScheduleCard(slot: slot),
+                    const SizedBox(height: 12),
+                  ],
+              ],
+            ),
+            _ProviderTabPage(
+              children: [
+                _ProviderSectionHeader(
+                  title: 'Revenue',
+                  description: 'Monitor earnings and platform commissions.',
+                ),
+                const SizedBox(height: 12),
+                _ProviderRevenueSummary(
+                  earnings: earnings,
+                  payments: payments,
+                ),
+                const SizedBox(height: AppSizes.sectionGap),
+                _ProviderSectionHeader(
+                  title: 'Recent payments',
+                  description: 'Latest customer payment records.',
+                  trailing: _ProviderStatusPill(label: payments.length.toString()),
+                ),
+                const SizedBox(height: 12),
+                if (payments.isEmpty)
+                  const _ProviderEmptyCard(
+                    icon: Icons.account_balance_wallet_outlined,
+                    title: 'No payment records yet',
+                    description: 'Customer booking payments will appear here.',
+                  )
+                else
+                  for (final payment in payments) ...[
+                    _ProviderPaymentCard(payment: payment),
+                    const SizedBox(height: 12),
+                  ],
+              ],
+            ),
+            _ProviderTabPage(
+              children: [
+                _ProviderSectionHeader(
+                  title: 'Open customer job requests',
+                  description:
+                      'Browse public requests that match your service categories.',
+                  trailing:
+                      _ProviderStatusPill(label: openJobRequests.length.toString()),
+                ),
+                const SizedBox(height: 12),
+                if (openJobRequests.isEmpty)
+                  const _ProviderEmptyCard(
+                    icon: Icons.assignment_outlined,
+                    title: 'No matching job requests yet',
+                    description:
+                        'Open customer requests that match your services will appear here.',
+                  )
+                else
+                  for (final job in openJobRequests) ...[
+                    _ProviderJobRequestCard(job: job),
+                    const SizedBox(height: 12),
+                  ],
+              ],
+            ),
+          ],
+        ),
+        Positioned(
+          right: AppSizes.pagePadding,
+          bottom: AppSizes.pagePadding,
+          child: FloatingActionButton.extended(
+            onPressed: isApproved ? onAddService : onOpenApplication,
+            icon: Icon(
+              isApproved
+                  ? Icons.add_business_rounded
+                  : Icons.assignment_ind_outlined,
+            ),
+            label: Text(isApproved ? 'List Service' : 'Apply'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showApprovalRequired(BuildContext context) {
+    Helpers.showSnackBar(
+      context,
+      'Your provider application must be approved before listing services.',
+      isError: true,
+    );
+  }
+}
+
+class _ProviderActionIcon extends StatelessWidget {
+  const _ProviderActionIcon({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: theme.tokens.subtleSurface,
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.55),
+          ),
+        ),
+        child: IconButton(
+          onPressed: onTap,
+          tooltip: tooltip,
+          icon: Icon(icon),
+          color: theme.colorScheme.primary,
+        ),
+      ),
+    );
+  }
+}
+
+class _ProviderTabPage extends StatelessWidget {
+  const _ProviderTabPage({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(
+        AppSizes.pagePadding,
+        AppSizes.pagePadding,
+        AppSizes.pagePadding,
+        96,
+      ),
+      children: [
+        Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 920),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: children,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ProviderWelcomePanel extends StatelessWidget {
+  const _ProviderWelcomePanel({
+    required this.user,
+    required this.application,
+    required this.serviceCount,
+    required this.pendingBookingCount,
+  });
+
+  final UserModel user;
+  final ProviderApplicationModel? application;
+  final int serviceCount;
+  final int pendingBookingCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final status = application?.status ?? user.providerVerificationStatus;
+    final normalizedStatus = status.trim().toLowerCase();
+    final isVerified = user.isApprovedProvider || normalizedStatus == 'approved';
+
+    final verificationLabel = switch (normalizedStatus) {
+      'approved' => 'Verified Provider',
+      'pending' => 'Pending Approval',
+      'rejected' => 'Application Rejected',
+      _ => isVerified ? 'Verified Provider' : 'Apply for Verification',
+    };
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSizes.cardPadding),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [theme.colorScheme.primary, const Color(0xFF2563EB)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(AppSizes.radiusLg),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Welcome back, ${user.firstName}',
+            style: theme.textTheme.headlineSmall?.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Manage services, booking requests, schedule, and earnings from one provider workspace.',
+            style: theme.textTheme.bodyLarge?.copyWith(
+              color: Colors.white.withValues(alpha: 0.86),
+              height: 1.45,
+            ),
+          ),
+          const SizedBox(height: 18),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _ProviderStatusBadge(
+                label: verificationLabel,
+                isActive: isVerified,
+              ),
+              _ProviderStatusBadge(
+                label: user.hasContactNumber
+                    ? 'Contact ready'
+                    : 'Add phone number',
+                isActive: user.hasContactNumber,
+              ),
+              _ProviderStatusBadge(
+                label: user.hasBookingLocation
+                    ? 'Location ready'
+                    : 'Add location',
+                isActive: user.hasBookingLocation,
+              ),
+              _ProviderStatusBadge(
+                label: '$serviceCount services',
+                isActive: serviceCount > 0,
+              ),
+              _ProviderStatusBadge(
+                label: '$pendingBookingCount pending',
+                isActive: pendingBookingCount == 0,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProviderStatusBadge extends StatelessWidget {
+  const _ProviderStatusBadge({required this.label, required this.isActive});
+
+  final String label;
+  final bool isActive;
+
+  @override
+  Widget build(BuildContext context) {
+    final background = isActive
+        ? Theme.of(context).tokens.successSoft
+        : Theme.of(context).tokens.warningSoft;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: AppTheme.resolveOnColor(background),
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+class _ProviderSectionHeader extends StatelessWidget {
+  const _ProviderSectionHeader({
+    required this.title,
+    required this.description,
+    this.trailing,
+  });
+
+  final String title;
+  final String description;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                description,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.textTheme.bodyMedium?.color?.withValues(
+                    alpha: 0.68,
+                  ),
+                  height: 1.35,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (trailing != null) ...[
+          const SizedBox(width: 12),
+          trailing!,
+        ],
+      ],
+    );
+  }
+}
+
+class _ProviderMetricGrid extends StatelessWidget {
+  const _ProviderMetricGrid({required this.metrics});
+
+  final List<_DashboardMetric> metrics;
+
+  @override
+  Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isWide = constraints.maxWidth >= 900;
+        final crossAxisCount = constraints.maxWidth >= 760 ? 4 : 2;
 
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(AppSizes.pagePadding),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1180),
+        return GridView.builder(
+          itemCount: metrics.length,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            mainAxisExtent: 126,
+          ),
+          itemBuilder: (context, index) {
+            final metric = metrics[index];
+            return _ProviderDashboardCard(
+              padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _ProviderHero(
-                    user: user,
-                    onAddService: onAddService,
-                    onAddSlot: onAddSlot,
-                    canAddService: isApproved,
-                  ),
-                  const SizedBox(height: AppSizes.sectionGap),
-                  ProviderVerificationBanner(
-                    user: user,
-                    application: application,
-                    onApply: onOpenApplication,
-                  ),
-                  const SizedBox(height: AppSizes.sectionGap),
-                  _MetricGrid(
-                    isWide: isWide,
-                    metrics: [
-                      _DashboardMetric(
-                        icon: Icons.account_balance_wallet_outlined,
-                        label: 'Earnings',
-                        value: _formatCurrency(earnings),
-                      ),
-                      _DashboardMetric(
-                        icon: Icons.pending_actions_rounded,
-                        label: 'Pending requests',
-                        value: pending.length.toString(),
-                      ),
-                      _DashboardMetric(
-                        icon: Icons.event_available_rounded,
-                        label: 'Upcoming jobs',
-                        value: upcoming.length.toString(),
-                      ),
-                      _DashboardMetric(
-                        icon: Icons.check_circle_outline_rounded,
-                        label: 'Completed jobs',
-                        value: completed.length.toString(),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: AppSizes.sectionGap),
-                  if (isWide)
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          flex: 3,
-                          child: _BookingRequestsSection(
-                            pendingBookings: pending,
-                            canAcceptBookings: isApproved,
-                            onAcceptBooking: onAcceptBooking,
-                            onDeclineBooking: onDeclineBooking,
-                            onOpenChat: onOpenChat,
-                          ),
-                        ),
-                        const SizedBox(width: AppSizes.sectionGap),
-                        Expanded(
-                          flex: 2,
-                          child: _AvailabilitySection(
-                            slots: slots,
-                            onAddSlot: onAddSlot,
-                          ),
-                        ),
-                      ],
-                    )
-                  else ...[
-                    _BookingRequestsSection(
-                      pendingBookings: pending,
-                      canAcceptBookings: isApproved,
-                      onAcceptBooking: onAcceptBooking,
-                      onDeclineBooking: onDeclineBooking,
-                      onOpenChat: onOpenChat,
+                  _ProviderIconCircle(icon: metric.icon),
+                  Text(
+                    metric.value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
                     ),
-                    const SizedBox(height: AppSizes.sectionGap),
-                    _AvailabilitySection(slots: slots, onAddSlot: onAddSlot),
-                  ],
-                  const SizedBox(height: AppSizes.sectionGap),
-                  _OpenJobRequestsSection(jobs: openJobRequests),
-                  const SizedBox(height: AppSizes.sectionGap),
-                  _ServiceListingsSection(
-                    services: services,
-                    canAddService: isApproved,
-                    onAddService: onAddService,
-                    onEditService: onEditService,
-                    onDeleteService: onDeleteService,
-                    onToggleServiceStatus: onToggleServiceStatus,
                   ),
-                  const SizedBox(height: AppSizes.sectionGap),
-                  _JobsSection(
-                    title: 'Upcoming jobs',
-                    bookings: upcoming,
-                    emptyTitle: 'No upcoming jobs',
-                    emptyDescription: 'Accepted bookings will be tracked here.',
-                    onMarkDone: onMarkBookingDone,
-                    onOpenChat: onOpenChat,
+                  Text(
+                    metric.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).textTheme.bodyMedium?.color
+                          ?.withValues(alpha: 0.68),
+                    ),
                   ),
-                  const SizedBox(height: AppSizes.sectionGap),
-                  _JobsSection(
-                    title: 'Completed jobs',
-                    bookings: completed,
-                    emptyTitle: 'No completed jobs yet',
-                    emptyDescription:
-                        'Finished bookings will remain available here.',
-                    onMarkDone: onMarkBookingDone,
-                    onOpenChat: onOpenChat,
-                  ),
-                  const SizedBox(height: AppSizes.sectionGap),
-                  _RevenueSection(payments: payments),
                 ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _ProviderQuickActions extends StatelessWidget {
+  const _ProviderQuickActions({
+    required this.isApproved,
+    required this.onAddService,
+    required this.onAddSlot,
+    required this.onOpenApplication,
+  });
+
+  final bool isApproved;
+  final VoidCallback onAddService;
+  final VoidCallback onAddSlot;
+  final VoidCallback onOpenApplication;
+
+  @override
+  Widget build(BuildContext context) {
+    return _ProviderDashboardCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _ProviderSectionHeader(
+            title: 'Quick actions',
+            description: 'Common provider tasks are available here.',
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              FilledButton.icon(
+                onPressed: isApproved ? onAddService : null,
+                icon: const Icon(Icons.add_business_rounded),
+                label: const Text('Add Service'),
+              ),
+              OutlinedButton.icon(
+                onPressed: onAddSlot,
+                icon: const Icon(Icons.event_available_rounded),
+                label: const Text('Add Schedule'),
+              ),
+              TextButton.icon(
+                onPressed: onOpenApplication,
+                icon: const Icon(Icons.assignment_ind_outlined),
+                label: const Text('Verification'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProviderDashboardCard extends StatelessWidget {
+  const _ProviderDashboardCard({
+    required this.child,
+    this.padding = const EdgeInsets.all(AppSizes.cardPadding),
+  });
+
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      width: double.infinity,
+      padding: padding,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.60),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+}
+
+class _ProviderIconCircle extends StatelessWidget {
+  const _ProviderIconCircle({required this.icon});
+
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final background = theme.tokens.accentSoft;
+
+    return Container(
+      width: 48,
+      height: 48,
+      decoration: BoxDecoration(color: background, shape: BoxShape.circle),
+      child: Icon(icon, color: AppTheme.resolveOnColor(background)),
+    );
+  }
+}
+
+class _ProviderStatusPill extends StatelessWidget {
+  const _ProviderStatusPill({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final normalized = label.trim().toLowerCase();
+    final background = switch (normalized) {
+      'active' ||
+      'accepted' ||
+      'approved' ||
+      'paid' ||
+      'available' => theme.tokens.successSoft,
+      'pending' || 'inactive' => theme.tokens.warningSoft,
+      'declined' || 'rejected' || 'cancelled_by_customer' => theme
+          .colorScheme
+          .errorContainer,
+      _ => theme.tokens.subtleSurface,
+    };
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        _titleizeStatus(label),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: AppTheme.resolveOnColor(background),
+          fontWeight: FontWeight.w800,
+          fontSize: 12,
+        ),
+      ),
+    );
+  }
+}
+
+class _ProviderMetaPill extends StatelessWidget {
+  const _ProviderMetaPill({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final background = Theme.of(context).tokens.subtleSurface;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 15, color: AppTheme.resolveOnColor(background)),
+          const SizedBox(width: 6),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 240),
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: AppTheme.resolveOnColor(background),
+                fontWeight: FontWeight.w700,
+                fontSize: 12,
               ),
             ),
           ),
-        );
-      },
+        ],
+      ),
+    );
+  }
+}
+
+class _ProviderEmptyCard extends StatelessWidget {
+  const _ProviderEmptyCard({
+    required this.icon,
+    required this.title,
+    required this.description,
+  });
+
+  final IconData icon;
+  final String title;
+  final String description;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return _ProviderDashboardCard(
+      child: Column(
+        children: [
+          Icon(
+            icon,
+            size: 38,
+            color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.48),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            description,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.72),
+              height: 1.4,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+enum _ProviderBookingFilter { all, pending, accepted, completed, closed }
+
+class _ProviderBookingsTab extends StatefulWidget {
+  const _ProviderBookingsTab({
+    required this.bookings,
+    required this.pending,
+    required this.accepted,
+    required this.completed,
+    required this.closed,
+    required this.canAccept,
+    required this.onAcceptBooking,
+    required this.onDeclineBooking,
+    required this.onMarkBookingDone,
+    required this.onOpenChat,
+  });
+
+  final List<ProviderBookingModel> bookings;
+  final List<ProviderBookingModel> pending;
+  final List<ProviderBookingModel> accepted;
+  final List<ProviderBookingModel> completed;
+  final List<ProviderBookingModel> closed;
+  final bool canAccept;
+  final ValueChanged<ProviderBookingModel> onAcceptBooking;
+  final ValueChanged<ProviderBookingModel> onDeclineBooking;
+  final ValueChanged<ProviderBookingModel> onMarkBookingDone;
+  final ValueChanged<ProviderBookingModel> onOpenChat;
+
+  @override
+  State<_ProviderBookingsTab> createState() => _ProviderBookingsTabState();
+}
+
+class _ProviderBookingsTabState extends State<_ProviderBookingsTab> {
+  _ProviderBookingFilter _filter = _ProviderBookingFilter.all;
+
+  @override
+  Widget build(BuildContext context) {
+    final visibleBookings = switch (_filter) {
+      _ProviderBookingFilter.all => widget.bookings,
+      _ProviderBookingFilter.pending => widget.pending,
+      _ProviderBookingFilter.accepted => widget.accepted,
+      _ProviderBookingFilter.completed => widget.completed,
+      _ProviderBookingFilter.closed => widget.closed,
+    };
+
+    return _ProviderTabPage(
+      children: [
+        _ProviderSectionHeader(
+          title: 'Booking requests',
+          description: 'Track pending, active, and finished bookings.',
+          trailing: _ProviderStatusPill(label: widget.bookings.length.toString()),
+        ),
+        const SizedBox(height: 12),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              _BookingFilterChip(
+                label: 'All ${widget.bookings.length}',
+                selected: _filter == _ProviderBookingFilter.all,
+                onSelected: () {
+                  setState(() => _filter = _ProviderBookingFilter.all);
+                },
+              ),
+              _BookingFilterChip(
+                label: 'Pending ${widget.pending.length}',
+                selected: _filter == _ProviderBookingFilter.pending,
+                onSelected: () {
+                  setState(() => _filter = _ProviderBookingFilter.pending);
+                },
+              ),
+              _BookingFilterChip(
+                label: 'Accepted ${widget.accepted.length}',
+                selected: _filter == _ProviderBookingFilter.accepted,
+                onSelected: () {
+                  setState(() => _filter = _ProviderBookingFilter.accepted);
+                },
+              ),
+              _BookingFilterChip(
+                label: 'Completed ${widget.completed.length}',
+                selected: _filter == _ProviderBookingFilter.completed,
+                onSelected: () {
+                  setState(() => _filter = _ProviderBookingFilter.completed);
+                },
+              ),
+              _BookingFilterChip(
+                label: 'Closed ${widget.closed.length}',
+                selected: _filter == _ProviderBookingFilter.closed,
+                onSelected: () {
+                  setState(() => _filter = _ProviderBookingFilter.closed);
+                },
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        if (visibleBookings.isEmpty)
+          const _ProviderEmptyCard(
+            icon: Icons.work_outline_rounded,
+            title: 'No bookings in this view',
+            description: 'Customer bookings will appear here.',
+          )
+        else
+          for (final booking in visibleBookings) ...[
+            _ProviderBookingCard(
+              booking: booking,
+              canAccept: widget.canAccept,
+              onAccept: () => widget.onAcceptBooking(booking),
+              onDecline: () => widget.onDeclineBooking(booking),
+              onMarkDone: () => widget.onMarkBookingDone(booking),
+              onOpenChat: () => widget.onOpenChat(booking),
+            ),
+            const SizedBox(height: 12),
+          ],
+      ],
+    );
+  }
+}
+
+class _BookingFilterChip extends StatelessWidget {
+  const _BookingFilterChip({
+    required this.label,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: ChoiceChip(
+        label: Text(label),
+        selected: selected,
+        onSelected: (_) => onSelected(),
+      ),
+    );
+  }
+}
+
+class _ProviderServiceCard extends StatelessWidget {
+  const _ProviderServiceCard({
+    required this.service,
+    required this.canEditService,
+    required this.onEdit,
+    required this.onDelete,
+    required this.onToggleStatus,
+  });
+
+  final ServiceListingModel service;
+  final bool canEditService;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+  final VoidCallback onToggleStatus;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isActive = service.status.trim().toLowerCase() == 'active';
+
+    return _ProviderDashboardCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const _ProviderIconCircle(icon: Icons.build_rounded),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      service.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${service.category} | ${service.location}',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.textTheme.bodyMedium?.color?.withValues(
+                          alpha: 0.70,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              _ProviderStatusPill(label: service.status),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _ProviderMetaPill(
+                icon: Icons.payments_outlined,
+                label: _formatCurrency(service.price),
+              ),
+              _ProviderMetaPill(
+                icon: Icons.star_rounded,
+                label:
+                    service.rating == 0 ? 'New' : service.rating.toStringAsFixed(1),
+              ),
+              _ProviderMetaPill(
+                icon: Icons.location_on_outlined,
+                label: service.location.trim().isEmpty
+                    ? 'Location not set'
+                    : service.location,
+              ),
+            ],
+          ),
+          const Divider(height: 24),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              TextButton.icon(
+                onPressed: canEditService ? onEdit : null,
+                icon: const Icon(Icons.edit_outlined),
+                label: const Text('Edit'),
+              ),
+              TextButton.icon(
+                onPressed: canEditService ? onToggleStatus : null,
+                icon: Icon(
+                  isActive
+                      ? Icons.pause_circle_outline
+                      : Icons.play_circle_outline,
+                ),
+                label: Text(isActive ? 'Deactivate' : 'Activate'),
+              ),
+              TextButton.icon(
+                onPressed: onDelete,
+                icon: const Icon(Icons.delete_outline_rounded),
+                label: const Text('Delete'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProviderBookingCard extends StatelessWidget {
+  const _ProviderBookingCard({
+    required this.booking,
+    required this.canAccept,
+    required this.onAccept,
+    required this.onDecline,
+    required this.onMarkDone,
+    required this.onOpenChat,
+  });
+
+  final ProviderBookingModel booking;
+  final bool canAccept;
+  final VoidCallback onAccept;
+  final VoidCallback onDecline;
+  final VoidCallback onMarkDone;
+  final VoidCallback onOpenChat;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return _ProviderDashboardCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const _ProviderIconCircle(icon: Icons.work_history_outlined),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      booking.serviceTitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      booking.customerName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.textTheme.bodyMedium?.color?.withValues(
+                          alpha: 0.70,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              _ProviderStatusPill(label: booking.status),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _ProviderMetaPill(
+                icon: Icons.calendar_today_outlined,
+                label: booking.selectedDate == null
+                    ? 'Date not set'
+                    : _formatDate(booking.selectedDate!),
+              ),
+              _ProviderMetaPill(
+                icon: Icons.schedule_rounded,
+                label: booking.selectedTimeSlot.isEmpty
+                    ? 'Slot not set'
+                    : booking.selectedTimeSlot,
+              ),
+              _ProviderMetaPill(
+                icon: Icons.payments_outlined,
+                label: _formatCurrency(booking.totalAmount),
+              ),
+              _ProviderMetaPill(
+                icon: Icons.receipt_long_outlined,
+                label: _titleizeStatus(booking.paymentStatus),
+              ),
+            ],
+          ),
+          if (booking.serviceAddress.trim().isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(
+              booking.serviceAddress,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodyMedium,
+            ),
+          ],
+          if (booking.notes.trim().isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              booking.notes,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.textTheme.bodyMedium?.color?.withValues(
+                  alpha: 0.72,
+                ),
+              ),
+            ),
+          ],
+          const Divider(height: 24),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              if (booking.isPending)
+                FilledButton.icon(
+                  onPressed: canAccept ? onAccept : null,
+                  icon: const Icon(Icons.check_rounded),
+                  label: const Text('Accept'),
+                ),
+              if (booking.isPending)
+                OutlinedButton.icon(
+                  onPressed: onDecline,
+                  icon: const Icon(Icons.close_rounded),
+                  label: const Text('Decline'),
+                ),
+              if (booking.canProviderMarkDone)
+                FilledButton.icon(
+                  onPressed: onMarkDone,
+                  icon: const Icon(Icons.check_circle_outline_rounded),
+                  label: const Text('Mark done'),
+                ),
+              TextButton.icon(
+                onPressed: onOpenChat,
+                icon: const Icon(Icons.chat_bubble_outline_rounded),
+                label: const Text('Chat'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProviderScheduleCard extends StatelessWidget {
+  const _ProviderScheduleCard({required this.slot});
+
+  final ProviderAvailabilitySlotModel slot;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return _ProviderDashboardCard(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _ProviderIconCircle(icon: Icons.event_available_rounded),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  slot.dateLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  slot.timeSlot,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          _ProviderStatusPill(label: slot.status),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProviderRevenueSummary extends StatelessWidget {
+  const _ProviderRevenueSummary({
+    required this.earnings,
+    required this.payments,
+  });
+
+  final double earnings;
+  final List<ProviderPaymentModel> payments;
+
+  @override
+  Widget build(BuildContext context) {
+    final commission = payments.fold<double>(
+      0,
+      (sum, payment) => sum + payment.platformCommissionAmount,
+    );
+
+    return _ProviderDashboardCard(
+      child: Wrap(
+        spacing: 18,
+        runSpacing: 18,
+        children: [
+          _RevenueFigure(label: 'Total earnings', value: _formatCurrency(earnings)),
+          _RevenueFigure(
+            label: 'Platform commission',
+            value: _formatCurrency(commission),
+          ),
+          _RevenueFigure(label: 'Payment records', value: payments.length.toString()),
+        ],
+      ),
+    );
+  }
+}
+
+class _RevenueFigure extends StatelessWidget {
+  const _RevenueFigure({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: 160),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(label),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProviderPaymentCard extends StatelessWidget {
+  const _ProviderPaymentCard({required this.payment});
+
+  final ProviderPaymentModel payment;
+
+  @override
+  Widget build(BuildContext context) {
+    return _ProviderDashboardCard(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _ProviderIconCircle(icon: Icons.receipt_long_outlined),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _formatCurrency(payment.providerEarning),
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _ProviderMetaPill(
+                      icon: Icons.price_change_outlined,
+                      label:
+                          'Commission ${_formatCurrency(payment.platformCommissionAmount)}',
+                    ),
+                    _ProviderMetaPill(
+                      icon: Icons.calendar_today_outlined,
+                      label: _formatDate(payment.createdAt),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          _ProviderStatusPill(label: payment.status),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProviderJobRequestCard extends StatelessWidget {
+  const _ProviderJobRequestCard({required this.job});
+
+  final JobPostModel job;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return _ProviderDashboardCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const _ProviderIconCircle(icon: Icons.campaign_outlined),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      job.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      job.customerName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.textTheme.bodyMedium?.color?.withValues(
+                          alpha: 0.70,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              _ProviderStatusPill(label: job.status),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Text(
+            job.description,
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _ProviderMetaPill(icon: Icons.category_outlined, label: job.category),
+              _ProviderMetaPill(
+                icon: Icons.payments_outlined,
+                label: '${_formatCurrency(job.budget)} budget',
+              ),
+              _ProviderMetaPill(
+                icon: Icons.speed_rounded,
+                label: 'Difficulty: ${job.difficulty}',
+              ),
+              _ProviderMetaPill(
+                icon: Icons.location_on_outlined,
+                label: job.readableLocation,
+              ),
+              if (job.ratingFilter != null)
+                _ProviderMetaPill(
+                  icon: Icons.star_rounded,
+                  label:
+                      'Prefers ${job.ratingFilter!.toStringAsFixed(job.ratingFilter! % 1 == 0 ? 0 : 1)}+ stars',
+                ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
@@ -2077,6 +3501,24 @@ class _DashboardMetric {
 }
 
 String _formatCurrency(double value) => 'PHP ${value.toStringAsFixed(2)}';
+
+String _titleizeStatus(String status) {
+  final words = status.trim().replaceAll('_', ' ').split(RegExp(r'\s+'));
+  if (words.isEmpty || words.first.isEmpty) {
+    return 'Pending';
+  }
+
+  return words
+      .map((word) {
+        if (word.isEmpty) {
+          return word;
+        }
+
+        final lower = word.toLowerCase();
+        return '${lower[0].toUpperCase()}${lower.substring(1)}';
+      })
+      .join(' ');
+}
 
 String _formatDate(DateTime value) {
   const months = [
